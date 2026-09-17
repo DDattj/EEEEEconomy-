@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 공부 아카이빙 대시보드 | My Stock Study Archive</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            200: '#bae0fd',
+                            500: '#2563eb',
+                            600: '#1d4ed8',
+                            700: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .drop-zone--over { border-color: #2563eb !important; background-color: #eff6ff !important; }
+    </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('main')">
+                    <div class="bg-brand-500 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center">
+                        <i class="fa-solid fa-chart-line text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
+                            투자의 정석 <span class="bg-brand-500/20 text-brand-200 text-[10px] px-2 py-0.5 rounded-full border border-brand-500/30">Archive</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">주식 실적 학습지 & 개인 공부 아카이브</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <nav class="hidden md:flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/50">
+                    <button id="nav-btn-main" onclick="navigateTo('main')" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 bg-brand-600 text-white shadow">
+                        <i class="fa-solid fa-grid-2"></i>
+                        <span>학습지 목록</span>
+                    </button>
+                    <button id="nav-btn-upload" onclick="navigateTo('upload')" class="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                        <span>학습지 업로드 / 관리</span>
+                    </button>
+                    <button id="nav-btn-guide" onclick="navigateTo('guide')" class="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-brands fa-github"></i>
+                        <span>깃허브 배포 가이드</span>
+                    </button>
+                </nav>
+
+                <!-- Action Button -->
+                <div class="flex items-center space-x-2">
+                    <button onclick="navigateTo('upload')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 hover:bg-brand-500 text-white transition flex items-center gap-1.5 shadow">
+                        <i class="fa-solid fa-plus"></i>
+                        <span class="hidden sm:inline">새 파일 업로드</span>
+                    </button>
+                    <button onclick="exportAllData()" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700" title="모든 저장 데이터 내보내기">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation Bar -->
+        <div class="md:hidden flex border-t border-slate-800 bg-slate-900 px-2 py-1.5 justify-around text-xs">
+            <button onclick="navigateTo('main')" id="mob-nav-main" class="flex-1 py-1.5 text-center text-brand-400 font-semibold flex flex-col items-center gap-1">
+                <i class="fa-solid fa-folder-open text-base"></i>
+                <span>목록</span>
+            </button>
+            <button onclick="navigateTo('upload')" id="mob-nav-upload" class="flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1">
+                <i class="fa-solid fa-file-arrow-up text-base"></i>
+                <span>파일업로드</span>
+            </button>
+            <button onclick="navigateTo('guide')" id="mob-nav-guide" class="flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1">
+                <i class="fa-brands fa-github text-base"></i>
+                <span>깃허브가이드</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 1: MAIN DASHBOARD (학습지 목록 메인 페이지) -->
+        <!-- ==================================================================== -->
+        <section id="view-main" class="space-y-6">
+            
+            <!-- Welcome Header & Stats Widget -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Banner -->
+                <div class="lg:col-span-2 bg-gradient-to-r from-slate-900 via-slate-800 to-brand-900 text-white rounded-2xl p-6 shadow-lg flex flex-col justify-between relative overflow-hidden">
+                    <div class="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 text-white">
+                        <i class="fa-solid fa-book-bookmark text-[180px]"></i>
+                    </div>
+                    <div class="relative z-10 space-y-2">
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-semibold">
+                            <i class="fa-solid fa-circle-play text-[10px] text-emerald-400"></i> 주식 실적 학습지 아카이브
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">나만의 주식 공부 노트</h2>
+                        <p class="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                            실적 발표 원문에서 '확인된 사실'과 '내 추측'을 구별하며 투자의 지평을 넓힙니다. 학습지를 선택하여 바로 공부를 시작하세요!
+                        </p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300 relative z-10">
+                        <span>현재 등록된 학습지: <strong class="text-white" id="stat-main-total-badge">1개</strong></span>
+                        <button onclick="navigateTo('upload')" class="text-brand-300 hover:text-white font-medium flex items-center gap-1">
+                            .md 학습지 파일 추가하기 <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>학습 진도 요약</span>
+                        <i class="fa-solid fa-chart-pie text-brand-500"></i>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                            <div class="text-xs text-slate-500 mb-1">전체 학습지</div>
+                            <div class="text-2xl font-bold text-slate-900" id="stat-total">1</div>
+                        </div>
+                        <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-100">
+                            <div class="text-xs text-emerald-700 mb-1">완료한 학습</div>
+                            <div class="text-2xl font-bold text-emerald-600" id="stat-completed">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-slate-600 mb-1.5">
+                            <span>전체 달성률</span>
+                            <span id="stat-progress-percent">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                            <div id="stat-progress-bar" class="bg-brand-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter & Search Bar -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="search-input" onkeyup="filterWorksheets()" placeholder="학습지 제목 또는 종목 검색..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 bg-slate-50">
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                    <button onclick="setFilter('all')" id="filter-all" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white shadow-sm flex-shrink-0">
+                        전체 보기
+                    </button>
+                    <button onclick="setFilter('in-progress')" id="filter-in-progress" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex-shrink-0">
+                        진행 중
+                    </button>
+                    <button onclick="setFilter('completed')" id="filter-completed" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex-shrink-0">
+                        완료됨
+                    </button>
+                </div>
+            </div>
+
+            <!-- Worksheets Cards Grid -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-book-open text-brand-500"></i>
+                        공부할 학습지 선택
+                    </h3>
+                    <button onclick="navigateTo('upload')" class="text-xs text-brand-600 font-semibold hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-upload"></i> 새 학습지 등록
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="worksheet-grid">
+                    <!-- Cards will be populated by JS -->
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 2: WORKSHEET STUDY MODE (학습지 풀기/공부 페이지) -->
+        <!-- ==================================================================== -->
+        <section id="view-study" class="hidden space-y-6">
+            
+            <!-- Top Bar Nav back to list -->
+            <div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-sm flex-wrap gap-3">
+                <button onclick="navigateTo('main')" class="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl hover:bg-slate-200 transition">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>학습지 목록으로 돌아가기</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="switchStudySubTab('form')" id="study-tab-form" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow">
+                        <i class="fa-solid fa-pen-to-square mr-1"></i> 대화형 풀이
+                    </button>
+                    <button onclick="switchStudySubTab('md')" id="study-tab-md" class="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">
+                        <i class="fa-regular fa-file-code mr-1"></i> 마크다운 미리보기
+                    </button>
+                    <button onclick="saveCurrentWorksheetProgress()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition flex items-center gap-1">
+                        <i class="fa-solid fa-floppy-disk"></i> 저장
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive Worksheet Container -->
+            <div id="study-subview-form" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-8">
+                
+                <!-- Dynamic Header Info -->
+                <div class="border-b border-slate-100 pb-5">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-600 border border-brand-100" id="ws-badge">1일차</span>
+                        <span class="text-xs text-slate-400" id="ws-date">2026년 9월 17일</span>
+                        <span class="text-xs text-slate-400">• 예상 시간: <span id="ws-time">45분</span></span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-900" id="ws-title">삼성전자 실적과 내 투자 생각 점검</h2>
+                    <p class="text-sm text-slate-600 mt-2 flex items-center gap-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <i class="fa-solid fa-bullseye text-brand-500 text-base"></i>
+                        <span>목표: <strong id="ws-goal">같은 회사 안에서도 휴대폰과 반도체의 이익 흐름이 다른지 확인한다</strong></span>
+                    </p>
+                </div>
+
+                <!-- Reference Box -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-sm">
+                    <div class="font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-book-open text-brand-500"></i> 오늘 볼 자료와 범위
+                    </div>
+                    <p class="text-slate-600 text-xs leading-relaxed" id="ws-ref-link">
+                        <a href="https://news.samsung.com/global/samsung-electronics-announces-second-quarter-2026-results" target="_blank" class="text-brand-600 underline font-medium">
+                            [삼성전자 2026년 2분기 실적 발표] <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                        </a>
+                        에서 아래 두 소제목만 읽습니다.
+                    </p>
+                    <ul class="list-disc list-inside text-xs text-slate-600 space-y-1 pl-1" id="ws-ref-list">
+                        <li><strong>DS To Maintain Growth Momentum While Advancing Technology Leadership</strong> 중 첫 두 문단</li>
+                        <li><strong>MX To Expand Flagship-Led Sales With Competitiveness of New Products</strong> 중 첫 문단</li>
+                    </ul>
+                    <div class="text-[11px] text-slate-500 bg-white p-2.5 rounded-lg border border-slate-200 mt-2">
+                        💡 <strong>Tip:</strong> 영문 읽기가 부담되면 브라우저 번역을 켜도 됩니다. 보고서는 2026년 7월 30일 발표된 4~6월 실적이며 '하반기 예상'은 확정 결과가 아닙니다.
+                    </div>
+                </div>
+
+                <!-- SECTION A -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">A</span>
+                        <h3 class="font-bold text-slate-900 text-base">읽기 전 내 생각 <span class="text-xs font-normal text-slate-400">(5분)</span></h3>
+                    </div>
+
+                    <!-- Q1 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">1. 삼성전자가 더 벌 것이라고 예상한 이유를 고른다. (복수 선택 가능)</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="AI 서버용 반도체 수요 증가" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>AI 서버용 반도체 수요 증가</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="휴대폰 판매 증가" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>휴대폰 판매 증가</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="부품 공급 확대" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>부품 공급 확대</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="회사 규모가 커서 이익도 계속 늘 것 같음" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>회사 규모가 커서 계속 늘 것 같음</span>
+                            </label>
+                        </div>
+                        <div class="pt-2">
+                            <input type="text" id="q1-etc" placeholder="기타 이유 입력..." class="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                        </div>
+                    </div>
+
+                    <!-- Q2 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">2. 이번 분기 이익에 더 크게 기여했을 것으로 예상한 사업 하나를 고른다.</label>
+                        <div class="flex flex-wrap gap-4 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="반도체 DS" class="text-brand-600 focus:ring-brand-500">
+                                <span>반도체 DS</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="모바일 MX" class="text-brand-600 focus:ring-brand-500">
+                                <span>모바일 MX</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="비슷할 것" class="text-brand-600 focus:ring-brand-500">
+                                <span>비슷할 것</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="모르겠음" class="text-brand-600 focus:ring-brand-500">
+                                <span>모르겠음</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q3 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">3. 예상한 이유 한 문장</label>
+                        <input type="text" id="q3" placeholder="예: AI 시장 확대로 HBM 등 고성능 반도체 판매가 대폭 늘었을 것으로 보이기 때문" class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                    </div>
+                </div>
+
+                <!-- SECTION B -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">B</span>
+                        <h3 class="font-bold text-slate-900 text-base">원문에서 확인 <span class="text-xs font-normal text-slate-400">(15분)</span></h3>
+                    </div>
+
+                    <!-- Q4 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">4. DS의 이번 분기 영업이익은 약 몇 조 원인가?</label>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm">약</span>
+                            <input type="text" id="q4" placeholder="숫자 입력" class="w-32 text-sm p-2 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                            <span class="text-sm">조 원</span>
+                            <label class="flex items-center gap-1.5 text-xs text-slate-500 ml-auto cursor-pointer">
+                                <input type="checkbox" id="q4-check" class="rounded"> 확인 전
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q5 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">5. MX 및 네트워크 사업의 이번 분기 영업손익은 다음 중 무엇인가?</label>
+                        <div class="flex flex-wrap gap-4 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q5" value="이익" class="text-brand-600 focus:ring-brand-500"> <span>이익</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q5" value="손실" class="text-brand-600 focus:ring-brand-500"> <span>손실</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q5" value="확인 전" class="text-brand-600 focus:ring-brand-500"> <span>확인 전</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q6 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">6. 회사가 메모리 실적이 좋아진 이유로 든 것을 모두 고른다.</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="AI 관련 서버 제품 수요" class="rounded text-brand-600 focus:ring-brand-500"> <span>AI 관련 서버 제품 수요</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="메모리 가격 상승" class="rounded text-brand-600 focus:ring-brand-500"> <span>메모리 가격 상승</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="휴대폰 부품 원가 하락" class="rounded text-brand-600 focus:ring-brand-500"> <span>휴대폰 부품 원가 하락</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="확인 전" class="rounded text-brand-600 focus:ring-brand-500"> <span>확인 전</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q7 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">7. 회사가 모바일 이익이 압박받은 이유로 든 것 하나를 고른다.</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="부품 원가 상승" class="text-brand-600 focus:ring-brand-500"> <span>부품 원가 상승</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="AI 수요 감소" class="text-brand-600 focus:ring-brand-500"> <span>AI 수요 감소</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="고객사 이름 변경" class="text-brand-600 focus:ring-brand-500"> <span>고객사 이름 변경</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="확인 전" class="text-brand-600 focus:ring-brand-500"> <span>확인 전</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q8 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">8. 가장 놀라웠던 확인된 사실 한 문장</label>
+                        <input type="text" id="q8" placeholder="예: 메모리는 고부가가치 제품 및 가격 상승으로 큰 폭 성장을 했으나, 모바일은 부품가 상승으로 이익률에 영향을 받았음" class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                        <div class="flex items-center gap-4 text-xs text-slate-600 pt-1 flex-wrap">
+                            <span>찾은 위치:</span>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q8-pos" value="DS 첫 문단"> DS 첫 문단</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q8-pos" value="DS 둘째 문단"> DS 둘째 문단</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q8-pos" value="MX 첫 문단"> MX 첫 문단</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION C -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">C</span>
+                        <h3 class="font-bold text-slate-900 text-base">해석하기 <span class="text-xs font-normal text-slate-400">(15분)</span></h3>
+                    </div>
+
+                    <!-- Q9 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">9. “AI 사용 증가 → 삼성전자가 돈을 더 번다” 사이에 자료가 보여 준 중간 과정을 고른다.</label>
+                        <div class="space-y-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="radio" name="q9" value="AI 서버 수요 → 메모리 판매 및 가격 변화 → 메모리 사업 실적" class="text-brand-600">
+                                <span>AI 서버 수요 → 메모리 판매 및 가격 변화 → 메모리 사업 실적</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="radio" name="q9" value="AI 서버 수요 → 모든 휴대폰의 이익 자동 증가" class="text-brand-600">
+                                <span>AI 서버 수요 → 모든 휴대폰의 이익 자동 증가</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="radio" name="q9" value="현재 자료만으로 아무 연결도 확인 불가" class="text-brand-600">
+                                <span>현재 자료만으로 아무 연결도 확인 불가</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q10 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">10. 휴대폰이 계속 팔려도 모바일 이익이 줄 수 있는 이유 한 문장</label>
+                        <input type="text" id="q10" placeholder="예: 핵심 부품 가격 원가가 상승하면 매출이 유지되어도 영업이익률이 감소하기 때문" class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                    </div>
+
+                    <!-- Q11 & Q12 & Q13 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                        <label class="block text-sm font-semibold text-slate-800">11~13. 실적 지속성 검토 및 반대 가능성</label>
+                        
+                        <div class="text-xs font-medium text-slate-600">11. 이번 실적만으로 다음 분기에도 같은 이익이 이어진다고 확신할 수 있나?</div>
+                        <div class="flex gap-4 text-xs">
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q11" value="그렇다"> 그렇다</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q11" value="아니다"> 아니다</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q11" value="확인 전"> 확인 전</label>
+                        </div>
+
+                        <div class="text-xs font-medium text-slate-600 pt-2">12. 반대 가능성을 하나 고른다.</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q12" value="메모리 가격 하락"> 메모리 가격 하락</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q12" value="경쟁사의 공급 확대"> 경쟁사의 공급 확대</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q12" value="AI 투자 지연"> AI 투자 지연</label>
+                            <div class="flex items-center gap-1">
+                                <span class="text-slate-500">기타:</span>
+                                <input type="text" id="q12-etc" class="text-xs p-1 rounded border border-slate-200 w-full">
+                            </div>
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">13. 이를 확인할 정보나 다음 자료 이름</label>
+                            <input type="text" id="q13" placeholder="예: 3분기 메모리 수급 전망 보고서 및 DRAM 가격 동향 리포트" class="w-full text-xs p-2 rounded border border-slate-200">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION D -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">D</span>
+                        <h3 class="font-bold text-slate-900 text-base">내 판단 기록 <span class="text-xs font-normal text-slate-400">(10분)</span></h3>
+                    </div>
+
+                    <!-- Q14 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">14. 오늘 본 자료가 내 기존 삼성전자 보유 이유에 미친 영향</label>
+                        <div class="flex flex-wrap gap-4 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="강화"> <span>강화</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="일부 약화"> <span>일부 약화</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="변화 없음"> <span>변화 없음</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="아직 판단 보류"> <span>아직 판단 보류</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Q15 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">15. 이유를 확인된 사실 하나에 연결하여 한 문장으로 적는다.</label>
+                        <textarea id="q15" rows="2" placeholder="예: AI 서버 수요로 인한 반도체 이익 개선은 확실하지만 모바일 부품 원가 부담이 존재하는 것을 확인했으므로 판단을 보류한다." class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+                    </div>
+
+                    <!-- Q16 & Q17 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                        <label class="block text-sm font-semibold text-slate-800">16. 오늘 결론</label>
+                        <div class="space-y-1.5 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q16" value="보유 이유를 유지하고 다음 실적 확인"> <span>보유 이유를 유지하고 다음 실적 확인</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q16" value="보유 이유를 다시 검토"> <span>보유 이유를 다시 검토</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q16" value="판단 보류"> <span>판단 보류</span></label>
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="block text-xs font-semibold text-slate-800 mb-1">17. 다음에 확인할 질문 하나</label>
+                            <input type="text" id="q17" placeholder="예: 다음 분기 모바일 MX 사업부의 원가율 개선 여부" class="w-full text-xs p-2.5 rounded-lg border border-slate-200">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checklist Completion -->
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2 text-xs">
+                    <div class="font-bold text-emerald-800 text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check text-emerald-600"></i> 학습 완료 체크리스트
+                    </div>
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-900">
+                        <input type="checkbox" id="check-1" onchange="autoSaveChecklist()" class="rounded text-emerald-600">
+                        <span>선택 문항 1~17에서 확인 가능한 칸을 채웠다.</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-900">
+                        <input type="checkbox" id="check-2" onchange="autoSaveChecklist()" class="rounded text-emerald-600">
+                        <span>'사실'과 '내 예상'을 구분했다.</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-900">
+                        <input type="checkbox" id="check-3" onchange="autoSaveChecklist()" class="rounded text-emerald-600">
+                        <span>이 문서를 저장했다. 다음 실적이 발표되면 11~17번을 다시 읽는다.</span>
+                    </label>
+                </div>
+
+                <!-- Footer Action Buttons -->
+                <div class="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+                    <button onclick="copySubmissionAnswers()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition flex items-center gap-1.5 shadow">
+                        <i class="fa-regular fa-copy"></i> 답안 요약복사
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="saveCurrentWorksheetProgress()" class="px-5 py-2 text-xs font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-500 transition shadow">
+                            <i class="fa-solid fa-floppy-disk mr-1"></i> 현재 풀이 저장하기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Markdown Viewer Tab in Study Mode -->
+            <div id="study-subview-md" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-800 text-sm">작성 결과 마크다운(.md) 문서</h3>
+                    <button onclick="downloadMarkdownFile()" class="px-3.5 py-1.5 text-xs bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-medium flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-arrow-down"></i> .md 파일 다운로드
+                    </button>
+                </div>
+                <textarea id="markdown-viewer" class="w-full h-96 p-4 bg-slate-900 text-slate-200 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none" readonly></textarea>
+            </div>
+
+        </section>
+
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 3: UPLOAD & FILE MANAGEMENT (학습지 업로드 및 파일 관리) -->
+        <!-- ==================================================================== -->
+        <section id="view-upload" class="hidden space-y-6">
+            
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-file-arrow-up text-brand-500"></i>
+                        학습지 파일(.md) 업로드 공간
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        새로 전달받은 학습지 마크다운 파일이나 작성한 포맷 문서를 여기에 올리면 학습지 목록에 추가됩니다.
+                    </p>
+                </div>
+
+                <!-- Drag and Drop Zone -->
+                <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-8 text-center bg-slate-50 transition cursor-pointer flex flex-col items-center justify-center space-y-3">
+                    <div class="w-14 h-14 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center text-2xl shadow-sm">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-slate-800">
+                            마크다운(.md) 파일을 여기에 드래그하거나 클릭하여 선택하세요
+                        </p>
+                        <p class="text-xs text-slate-400 mt-1">지원 형식: .md, .txt (마크다운 포맷 학습지)</p>
+                    </div>
+                    <input type="file" id="md-file-input" accept=".md,.txt" class="hidden" onchange="handleFileSelect(event)">
+                    <button onclick="document.getElementById('md-file-input').click()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-brand-600 text-white hover:bg-brand-500 transition shadow">
+                        파일 찾기
+                    </button>
+                </div>
+
+                <!-- Direct Text Paste Option -->
+                <div class="border-t border-slate-100 pt-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-code"></i> 마크다운 직접 붙여넣기 등록
+                        </label>
+                    </div>
+                    <textarea id="paste-md-input" rows="5" placeholder="# 2일차 SK하이닉스 실적 학습지&#10;날짜 2026년 9월 18일 | 예상 시간 40분..." class="w-full text-xs p-3 font-mono rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 bg-slate-50"></textarea>
+                    <button onclick="addWorksheetFromPastedText()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition">
+                        붙여넣은 글로 학습지 생성
+                    </button>
+                </div>
+            </div>
+
+            <!-- Uploaded Worksheets List / Management -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-folder-tree text-brand-500"></i>
+                        현재 등록된 학습지 파일 관리
+                    </h3>
+                    <button onclick="resetToSampleData()" class="text-xs text-red-500 hover:text-red-600 font-medium">
+                        <i class="fa-solid fa-rotate-left"></i> 기본 샘플로 초기화
+                    </button>
+                </div>
+
+                <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden" id="uploaded-file-list">
+                    <!-- Dynamic File Items -->
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 4: GITHUB DEPLOYMENT GUIDE (깃허브 연동 가이드) -->
+        <!-- ==================================================================== -->
+        <section id="view-guide" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-brands fa-github text-brand-500"></i>
+                        GitHub Pages로 무료 웹사이트 배포하기
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        이 대시보드 파일(<code class="bg-slate-100 px-1 py-0.5 rounded text-slate-800">index.html</code>)과 공부한 학습지(.md) 파일들을 깃허브에 올리고 누구나 접속할 수 있는 웹 페이지로 공개하는 방법입니다.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Step 1 -->
+                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
+                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">1</span>
+                            GitHub Repository 생성
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            <a href="https://github.com" target="_blank" class="text-brand-600 font-medium underline">github.com</a> 로그인 후 오른쪽 상단 <strong>+</strong> → <strong>New repository</strong>를 클릭합니다. 이름은 <code class="bg-white px-1 border rounded">stock-study-archive</code>로 지어줍니다.
+                        </p>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
+                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">2</span>
+                            index.html 및 .md 업로드
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            만들어진 저장소에서 <strong>uploading an existing file</strong>을 클릭하고, 지금 다운로드하신 이 메인 웹앱 파일(<code class="bg-white px-1 border rounded">index.html</code>)과 학습지 마크다운 파일들을 함께 드래그하여 올립니다.
+                        </p>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
+                        <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
+                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">3</span>
+                            GitHub Pages 활성화
+                        </div>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            저장소 <strong>Settings</strong> → <strong>Pages</strong> 메뉴로 이동하여 Branch를 <code class="bg-white px-1 border rounded">main</code>으로 바꾸고 Save를 누르면, 나만의 주식공부 주소가 생성됩니다!
+                        </p>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-900 space-y-1">
+                    <div class="font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-lightbulb text-amber-500"></i> 아카이빙 꿀팁
+                    </div>
+                    <p class="leading-relaxed">
+                        새로운 학습지가 생길 때마다 [학습지 업로드] 메뉴에서 추가하고, 다운로드받은 마크다운 저장본을 깃허브 저장소에 커밋하면 나만의 멋진 주식 포트폴리오 잔디가 채워집니다.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl text-xs shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-2 border border-slate-700">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-base" id="toast-icon"></i>
+        <span id="toast-msg">메시지 내용</span>
+    </div>
+
+    <script>
+        // Sample Initial Worksheet (1일차 삼성전자)
+        const sampleWorksheets = [
+            {
+                id: "ws-samsung-1",
+                day: "1일차",
+                company: "삼성전자",
+                title: "삼성전자 실적과 내 투자 생각 점검",
+                date: "2026-09-17",
+                time: "45분",
+                goal: "같은 회사 안에서도 휴대폰과 반도체의 이익 흐름이 다른지 확인한다",
+                filename: "2026-09-17_투자공부_1일차_삼성전자_실적학습지.md",
+                completed: false,
+                rawMd: `# 1일차 삼성전자 실적과 내 투자 생각 점검\n날짜 2026년 9월 17일 | 예상 시간 45분 | 목표 1개 같은 회사 안에서도 휴대폰과 반도체의 이익 흐름이 다른지 확인한다`
+            }
+        ];
+
+        // State variables
+        let worksheets = JSON.parse(localStorage.getItem('stock_archive_worksheets')) || sampleWorksheets;
+        let activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+        let currentFilter = 'all';
+
+        // Initialize application on load
+        window.onload = function() {
+            initDropZone();
+            renderMainGrid();
+            renderUploadedFileList();
+            updateStats();
+            
+            if(activeWorksheetId) {
+                loadWorksheetFormData(activeWorksheetId);
+            }
+        };
+
+        // Navigation Controller
+        function navigateTo(viewName) {
+            const views = ['main', 'study', 'upload', 'guide'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                const btn = document.getElementById(`nav-btn-${v}`);
+                const mobBtn = document.getElementById(`mob-nav-${v}`);
+
+                if (v === viewName) {
+                    el.classList.remove('hidden');
+                    if (btn) btn.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 bg-brand-600 text-white shadow";
+                    if (mobBtn) mobBtn.className = "flex-1 py-1.5 text-center text-brand-400 font-semibold flex flex-col items-center gap-1";
+                } else {
+                    el.classList.add('hidden');
+                    if (btn) btn.className = "px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-lg transition flex items-center gap-1.5";
+                    if (mobBtn) mobBtn.className = "flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1";
+                }
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Render Main Page Grid
+        function renderMainGrid() {
+            const gridEl = document.getElementById('worksheet-grid');
+            gridEl.innerHTML = '';
+
+            const searchTerm = (document.getElementById('search-input')?.value || '').toLowerCase();
+
+            const filtered = worksheets.filter(ws => {
+                const matchSearch = ws.title.toLowerCase().includes(searchTerm) || (ws.company || '').toLowerCase().includes(searchTerm);
+                if (currentFilter === 'completed') return matchSearch && ws.completed;
+                if (currentFilter === 'in-progress') return matchSearch && !ws.completed;
+                return matchSearch;
+            });
+
+            if (filtered.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200">
+                        <i class="fa-regular fa-folder-open text-4xl text-slate-300 mb-2"></i>
+                        <p class="text-sm font-semibold text-slate-600">등록되거나 조건에 맞는 학습지가 없습니다.</p>
+                        <button onclick="navigateTo('upload')" class="mt-3 px-4 py-2 text-xs bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-500 transition">
+                            <i class="fa-solid fa-upload mr-1"></i> 학습지 파일 업로드하기
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(ws => {
+                const card = document.createElement('div');
+                card.className = "bg-white border border-slate-200 hover:border-brand-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between space-y-4 group relative";
+                
+                card.onclick = () => openWorksheetForStudy(ws.id);
+
+                card.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${ws.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-brand-50 text-brand-600 border border-brand-100'}">
+                                ${ws.day || '학습지'}
+                            </span>
+                            <span class="text-xs text-slate-400 font-mono">${ws.date || ''}</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900 text-base group-hover:text-brand-600 transition line-clamp-2">
+                            ${ws.title}
+                        </h4>
+                        <p class="text-xs text-slate-500 line-clamp-2">
+                            ${ws.goal ? '목표: ' + ws.goal : '주식 실적 및 원문 분석 학습지'}
+                        </p>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400 flex items-center gap-1">
+                            <i class="fa-regular fa-clock"></i> ${ws.time || '30~45분'}
+                        </span>
+                        <span class="font-semibold ${ws.completed ? 'text-emerald-600' : 'text-brand-600'} flex items-center gap-1">
+                            ${ws.completed ? '<i class="fa-solid fa-circle-check"></i> 학습 완료' : '공부 시작하기 <i class="fa-solid fa-chevron-right text-[10px]"></i>'}
+                        </span>
+                    </div>
+                `;
+                gridEl.appendChild(card);
+            });
+        }
+
+        function filterWorksheets() {
+            renderMainGrid();
+        }
+
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            ['all', 'in-progress', 'completed'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if(f === filterType) {
+                    btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white shadow-sm flex-shrink-0";
+                } else {
+                    btn.className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex-shrink-0";
+                }
+            });
+            renderMainGrid();
+        }
+
+        // Open Worksheet and fill into study view
+        function openWorksheetForStudy(wsId) {
+            activeWorksheetId = wsId;
+            const target = worksheets.find(w => w.id === wsId);
+            if (!target) return;
+
+            // Populate Study Header
+            document.getElementById('ws-badge').innerText = target.day || '학습지';
+            document.getElementById('ws-date').innerText = target.date || '날짜 미지정';
+            document.getElementById('ws-time').innerText = target.time || '45분';
+            document.getElementById('ws-title').innerText = target.title;
+            document.getElementById('ws-goal').innerText = target.goal || '실적 원문 분석 및 투자 아이디어 검증';
+
+            // Load saved form progress for this worksheet
+            loadWorksheetFormData(wsId);
+
+            // Switch to study view
+            navigateTo('study');
+            showToast(`'${target.title}' 학습지를 불러왔습니다.`);
+        }
+
+        // Drag & Drop Setup
+        function initDropZone() {
+            const dropZone = document.getElementById('drop-zone');
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.add('drop-zone--over');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.classList.remove('drop-zone--over');
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                const files = e.dataTransfer.files;
+                if (files.length) {
+                    processUploadedFile(files[0]);
+                }
+            }, false);
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processUploadedFile(file);
+            }
+        }
+
+        // Process File content
+        function processUploadedFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const newWorksheet = parseMarkdownToWorksheet(text, file.name);
+                worksheets.unshift(newWorksheet);
+                saveWorksheetsToStorage();
+                
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+
+                showToast(`'${file.name}' 업로드 완료! 목록에 추가되었습니다.`);
+                document.getElementById('paste-md-input').value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function addWorksheetFromPastedText() {
+            const text = document.getElementById('paste-md-input').value.trim();
+            if(!text) {
+                showToast("마크다운 글을 입력해주세요.", true);
+                return;
+            }
+            const newWorksheet = parseMarkdownToWorksheet(text, `학습지_${worksheets.length + 1}.md`);
+            worksheets.unshift(newWorksheet);
+            saveWorksheetsToStorage();
+
+            renderMainGrid();
+            renderUploadedFileList();
+            updateStats();
+
+            document.getElementById('paste-md-input').value = '';
+            showToast("신규 학습지가 정상적으로 등록되었습니다!");
+        }
+
+        // Parse Markdown text to extract header metadata
+        function parseMarkdownToWorksheet(mdText, filename) {
+            const lines = mdText.split('\n');
+            let title = lines[0] ? lines[0].replace(/^#+\s*/, '').trim() : "새 주식 학습지";
+            let date = new Date().toISOString().split('T')[0];
+            let time = "45분";
+            let goal = "실적 원문과 내 판단 기록하기";
+
+            // Extract Date / Time / Goal line
+            const metaLine = lines.find(l => l.includes('날짜') || l.includes('목표'));
+            if(metaLine) {
+                const dateMatch = metaLine.match(/날짜\s*([\d년월일\s\-]+)/);
+                if(dateMatch) date = dateMatch[1].trim();
+
+                const timeMatch = metaLine.match(/예상\s*시간\s*([\d분]+)/);
+                if(timeMatch) time = timeMatch[1].trim();
+
+                const goalMatch = metaLine.match(/목표\s*[\d개]*\s*(.+)/);
+                if(goalMatch) goal = goalMatch[1].trim();
+            }
+
+            return {
+                id: "ws-" + Date.now(),
+                day: `${worksheets.length + 1}일차`,
+                company: title.includes('삼성') ? '삼성전자' : title.includes('SK') ? 'SK하이닉스' : '종목 분석',
+                title: title,
+                date: date,
+                time: time,
+                goal: goal,
+                filename: filename,
+                completed: false,
+                rawMd: mdText
+            };
+        }
+
+        // Render File Management List in Upload View
+        function renderUploadedFileList() {
+            const container = document.getElementById('uploaded-file-list');
+            container.innerHTML = '';
+
+            worksheets.forEach((ws, idx) => {
+                const item = document.createElement('div');
+                item.className = "p-4 bg-white flex items-center justify-between hover:bg-slate-50 transition flex-wrap gap-2";
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-xs">
+                            <i class="fa-regular fa-file-lines"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-800 text-xs sm:text-sm">${ws.title}</div>
+                            <div class="text-[11px] text-slate-400 font-mono">${ws.filename || 'markdown.md'} • ${ws.date}</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="openWorksheetForStudy('${ws.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800">
+                            공부하기
+                        </button>
+                        ${worksheets.length > 1 ? `
+                        <button onclick="deleteWorksheet('${ws.id}')" class="p-1.5 text-xs text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                        ` : ''}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function deleteWorksheet(id) {
+            if(confirm("정말로 이 학습지를 삭제하시겠습니까?")) {
+                worksheets = worksheets.filter(w => w.id !== id);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                showToast("학습지가 삭제되었습니다.");
+            }
+        }
+
+        function resetToSampleData() {
+            if(confirm("기본 예시 학습지로 초기화하시겠습니까? (작성 중인 내용이 리셋될 수 있습니다)")) {
+                worksheets = sampleWorksheets;
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                showToast("기본 샘플 데이터로 리셋되었습니다.");
+            }
+        }
+
+        // Save Progress logic
+        function saveCurrentWorksheetProgress() {
+            if(!activeWorksheetId) return;
+
+            const formData = getFormData();
+            localStorage.setItem(`ws_save_${activeWorksheetId}`, JSON.stringify(formData));
+
+            // Check if checklist completed
+            const isDone = document.getElementById('check-1').checked && document.getElementById('check-2').checked;
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId);
+            if(targetWs) {
+                targetWs.completed = isDone;
+                saveWorksheetsToStorage();
+            }
+
+            renderMainGrid();
+            updateStats();
+            generateMarkdownPreview();
+            showToast("성공적으로 저장되었습니다!");
+        }
+
+        function autoSaveChecklist() {
+            saveCurrentWorksheetProgress();
+        }
+
+        function loadWorksheetFormData(wsId) {
+            const saved = localStorage.getItem(`ws_save_${wsId}`);
+            if(!saved) {
+                resetFormInputs();
+                return;
+            }
+
+            const data = JSON.parse(saved);
+            
+            // Text Inputs
+            if(data.q1Etc) document.getElementById('q1-etc').value = data.q1Etc;
+            if(data.q3) document.getElementById('q3').value = data.q3;
+            if(data.q4) document.getElementById('q4').value = data.q4;
+            if(data.q4Check) document.getElementById('q4-check').checked = data.q4Check;
+            if(data.q8) document.getElementById('q8').value = data.q8;
+            if(data.q10) document.getElementById('q10').value = data.q10;
+            if(data.q12Etc) document.getElementById('q12-etc').value = data.q12Etc;
+            if(data.q13) document.getElementById('q13').value = data.q13;
+            if(data.q15) document.getElementById('q15').value = data.q15;
+            if(data.q17) document.getElementById('q17').value = data.q17;
+
+            // Checkboxes & Radios
+            setCheckboxValues('q1', data.q1 || []);
+            setCheckboxValues('q6', data.q6 || []);
+            setRadioValue('q2', data.q2);
+            setRadioValue('q5', data.q5);
+            setRadioValue('q7', data.q7);
+            setRadioValue('q8-pos', data.q8Pos);
+            setRadioValue('q9', data.q9);
+            setRadioValue('q11', data.q11);
+            setRadioValue('q12', data.q12);
+            setRadioValue('q14', data.q14);
+            setRadioValue('q16', data.q16);
+
+            document.getElementById('check-1').checked = !!data.check1;
+            document.getElementById('check-2').checked = !!data.check2;
+            document.getElementById('check-3').checked = !!data.check3;
+        }
+
+        function resetFormInputs() {
+            const inputs = document.querySelectorAll('#study-subview-form input[type="text"], #study-subview-form textarea');
+            inputs.forEach(i => i.value = '');
+            const checkboxes = document.querySelectorAll('#study-subview-form input[type="checkbox"], #study-subview-form input[type="radio"]');
+            checkboxes.forEach(c => c.checked = false);
+        }
+
+        function getFormData() {
+            return {
+                q1: getCheckboxValues('q1'),
+                q1Etc: document.getElementById('q1-etc').value,
+                q2: getRadioValue('q2'),
+                q3: document.getElementById('q3').value,
+                q4: document.getElementById('q4').value,
+                q4Check: document.getElementById('q4-check').checked,
+                q5: getRadioValue('q5'),
+                q6: getCheckboxValues('q6'),
+                q7: getRadioValue('q7'),
+                q8: document.getElementById('q8').value,
+                q8Pos: getRadioValue('q8-pos'),
+                q9: getRadioValue('q9'),
+                q10: document.getElementById('q10').value,
+                q11: getRadioValue('q11'),
+                q12: getRadioValue('q12'),
+                q12Etc: document.getElementById('q12-etc').value,
+                q13: document.getElementById('q13').value,
+                q14: getRadioValue('q14'),
+                q15: document.getElementById('q15').value,
+                q16: getRadioValue('q16'),
+                q17: document.getElementById('q17').value,
+                check1: document.getElementById('check-1').checked,
+                check2: document.getElementById('check-2').checked,
+                check3: document.getElementById('check-3').checked,
+            };
+        }
+
+        // Helper getters/setters for Form
+        function getCheckboxValues(name) {
+            return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
+        }
+        function setCheckboxValues(name, values) {
+            document.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
+                cb.checked = values.includes(cb.value);
+            });
+        }
+        function getRadioValue(name) {
+            const checked = document.querySelector(`input[name="${name}"]:checked`);
+            return checked ? checked.value : '';
+        }
+        function setRadioValue(name, value) {
+            if(!value) return;
+            const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+            if(radio) radio.checked = true;
+        }
+
+        // Switch Sub tabs in Study Mode
+        function switchStudySubTab(subTab) {
+            const formView = document.getElementById('study-subview-form');
+            const mdView = document.getElementById('study-subview-md');
+            const btnForm = document.getElementById('study-tab-form');
+            const btnMd = document.getElementById('study-tab-md');
+
+            if(subTab === 'form') {
+                formView.classList.remove('hidden');
+                mdView.classList.add('hidden');
+                btnForm.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow";
+                btnMd.className = "px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg";
+            } else {
+                formView.classList.add('hidden');
+                mdView.classList.remove('hidden');
+                btnForm.className = "px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg";
+                btnMd.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow";
+                generateMarkdownPreview();
+            }
+        }
+
+        // Copy Answers to Clipboard
+        function copySubmissionAnswers() {
+            const data = getFormData();
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId);
+            const title = targetWs ? targetWs.title : "학습지";
+
+            const text = `[${title} - 답안 요약 제출]
+- 4번 (영업이익): 약 ${data.q4 || '___'}조 원
+- 5번 (영업손익): ${data.q5 || '미선택'}
+- 6번 (실적 요인): ${data.q6.join(', ') || '미선택'}
+- 7번 (이익 압박 요인): ${data.q7 || '미선택'}
+- 14번 (보유 이유 영향): ${data.q14 || '미선택'}
+- 15번 (확인된 사실 연결): ${data.q15 || '(미작성)'}
+- 16번 (오늘 결론): ${data.q16 || '미선택'}
+- 17번 (다음 질문): ${data.q17 || '(미작성)'}`;
+
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+
+            showToast("답안 요약이 클립보드에 복사되었습니다!");
+        }
+
+        // Generate MD Document
+        function generateMarkdownPreview() {
+            const data = getFormData();
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId) || {};
+
+            const mdText = `# ${targetWs.title || '주식 실적 학습지'}
+
+날짜: ${targetWs.date || ''} | 작성 상태: ${data.check1 ? '완료' : '진행 중'}
+
+## A. 읽기 전 내 생각
+1. 예상 이유: ${data.q1.join(', ')} ${data.q1Etc ? `(기타: ${data.q1Etc})` : ''}
+2. 기여 사업: ${data.q2 || '미선택'}
+3. 예상한 이유: ${data.q3 || ''}
+
+## B. 원문에서 확인
+4. 영업이익: 약 ${data.q4 || '___'}조 원
+5. 영업손익: ${data.q5 || '미선택'}
+6. 실적 상승 요인: ${data.q6.join(', ')}
+7. 이익 압박 요인: ${data.q7 || '미선택'}
+8. 확인된 사실: ${data.q8 || ''} (위치: ${data.q8Pos || ''})
+
+## C. 해석하기
+9. 중간 과정: ${data.q9 || ''}
+10. 이익 감소 이유: ${data.q10 || ''}
+11. 지속성 확신: ${data.q11 || ''}
+12. 반대 가능성: ${data.q12 || ''} ${data.q12Etc || ''}
+13. 다음 확인 자료: ${data.q13 || ''}
+
+## D. 내 판단 기록
+14. 보유 이유 영향: ${data.q14 || ''}
+15. 연결 문장: ${data.q15 || ''}
+16. 오늘 결론: ${data.q16 || ''}
+17. 다음에 확인할 질문: ${data.q17 || ''}
+`;
+            document.getElementById('markdown-viewer').value = mdText;
+        }
+
+        function downloadMarkdownFile() {
+            generateMarkdownPreview();
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId);
+            const fileName = targetWs ? `${targetWs.date}_${targetWs.title}_작성완료.md` : "학습지_결과.md";
+            
+            const text = document.getElementById('markdown-viewer').value;
+            const blob = new Blob([text], { type: "text/markdown;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("마크다운 파일 다운로드 완료!");
+        }
+
+        function exportAllData() {
+            const data = {
+                worksheets: worksheets,
+                savedData: localStorage
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "stock_study_archive_backup.json";
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("전체 데이터 백업 파일 내보내기 완료!");
+        }
+
+        function saveWorksheetsToStorage() {
+            localStorage.setItem('stock_archive_worksheets', JSON.stringify(worksheets));
+        }
+
+        function updateStats() {
+            const total = worksheets.length;
+            const completed = worksheets.filter(w => w.completed).length;
+            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-main-total-badge').innerText = `${total}개`;
+            document.getElementById('stat-completed').innerText = completed;
+            document.getElementById('stat-progress-percent').innerText = `${percent}%`;
+            document.getElementById('stat-progress-bar').style.width = `${percent}%`;
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            document.getElementById('toast-msg').innerText = message;
+
+            if (isError) {
+                icon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-base";
+            } else {
+                icon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
