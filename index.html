@@ -45,7 +45,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo & Title -->
-                <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('main')">
+                <div class="flex items-center space-x-3 cursor-pointer lg:flex-1" onclick="navigateTo('main')">
                     <div class="bg-brand-500 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center">
                         <i class="fa-solid fa-chart-line text-xl"></i>
                     </div>
@@ -67,22 +67,8 @@
                         <i class="fa-solid fa-file-arrow-up"></i>
                         <span>학습지 업로드 / 관리</span>
                     </button>
-                    <button id="nav-btn-guide" onclick="navigateTo('guide')" class="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-lg transition flex items-center gap-1.5">
-                        <i class="fa-brands fa-github"></i>
-                        <span>깃허브 배포 가이드</span>
-                    </button>
                 </nav>
-
-                <!-- Action Button -->
-                <div class="flex items-center space-x-2">
-                    <button onclick="navigateTo('upload')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 hover:bg-brand-500 text-white transition flex items-center gap-1.5 shadow">
-                        <i class="fa-solid fa-plus"></i>
-                        <span class="hidden sm:inline">새 파일 업로드</span>
-                    </button>
-                    <button onclick="exportAllData()" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition border border-slate-700" title="모든 저장 데이터 내보내기">
-                        <i class="fa-solid fa-download"></i>
-                    </button>
-                </div>
+                <div class="hidden lg:block lg:flex-1" aria-hidden="true"></div>
             </div>
         </div>
 
@@ -95,10 +81,6 @@
             <button onclick="navigateTo('upload')" id="mob-nav-upload" class="flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1">
                 <i class="fa-solid fa-file-arrow-up text-base"></i>
                 <span>파일업로드</span>
-            </button>
-            <button onclick="navigateTo('guide')" id="mob-nav-guide" class="flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1">
-                <i class="fa-brands fa-github text-base"></i>
-                <span>깃허브가이드</span>
             </button>
         </div>
     </header>
@@ -639,67 +621,6 @@
         </section>
 
 
-        <!-- ==================================================================== -->
-        <!-- VIEW 4: GITHUB DEPLOYMENT GUIDE (깃허브 연동 가이드) -->
-        <!-- ==================================================================== -->
-        <section id="view-guide" class="hidden space-y-6">
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
-                <div>
-                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <i class="fa-brands fa-github text-brand-500"></i>
-                        GitHub Pages로 무료 웹사이트 배포하기
-                    </h2>
-                    <p class="text-xs text-slate-500 mt-1">
-                        이 대시보드 파일(<code class="bg-slate-100 px-1 py-0.5 rounded text-slate-800">index.html</code>)과 공부한 학습지(.md) 파일들을 깃허브에 올리고 누구나 접속할 수 있는 웹 페이지로 공개하는 방법입니다.
-                    </p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Step 1 -->
-                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
-                        <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">1</span>
-                            GitHub Repository 생성
-                        </div>
-                        <p class="text-xs text-slate-600 leading-relaxed">
-                            <a href="https://github.com" target="_blank" class="text-brand-600 font-medium underline">github.com</a> 로그인 후 오른쪽 상단 <strong>+</strong> → <strong>New repository</strong>를 클릭합니다. 이름은 <code class="bg-white px-1 border rounded">stock-study-archive</code>로 지어줍니다.
-                        </p>
-                    </div>
-
-                    <!-- Step 2 -->
-                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
-                        <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">2</span>
-                            index.html 및 .md 업로드
-                        </div>
-                        <p class="text-xs text-slate-600 leading-relaxed">
-                            만들어진 저장소에서 <strong>uploading an existing file</strong>을 클릭하고, 지금 다운로드하신 이 메인 웹앱 파일(<code class="bg-white px-1 border rounded">index.html</code>)과 학습지 마크다운 파일들을 함께 드래그하여 올립니다.
-                        </p>
-                    </div>
-
-                    <!-- Step 3 -->
-                    <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
-                        <div class="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs">3</span>
-                            GitHub Pages 활성화
-                        </div>
-                        <p class="text-xs text-slate-600 leading-relaxed">
-                            저장소 <strong>Settings</strong> → <strong>Pages</strong> 메뉴로 이동하여 Branch를 <code class="bg-white px-1 border rounded">main</code>으로 바꾸고 Save를 누르면, 나만의 주식공부 주소가 생성됩니다!
-                        </p>
-                    </div>
-                </div>
-
-                <div class="p-4 bg-brand-50 border border-brand-200 rounded-xl text-xs text-brand-900 space-y-1">
-                    <div class="font-bold flex items-center gap-1.5">
-                        <i class="fa-solid fa-lightbulb text-amber-500"></i> 아카이빙 꿀팁
-                    </div>
-                    <p class="leading-relaxed">
-                        새로운 학습지가 생길 때마다 [학습지 업로드] 메뉴에서 추가하고, 다운로드받은 마크다운 저장본을 깃허브 저장소에 커밋하면 나만의 멋진 주식 포트폴리오 잔디가 채워집니다.
-                    </p>
-                </div>
-            </div>
-        </section>
-
     </main>
 
     <!-- Toast Notification -->
@@ -745,7 +666,7 @@
 
         // Navigation Controller
         function navigateTo(viewName) {
-            const views = ['main', 'study', 'upload', 'guide'];
+            const views = ['main', 'study', 'upload'];
             views.forEach(v => {
                 const el = document.getElementById(`view-${v}`);
                 const btn = document.getElementById(`nav-btn-${v}`);
@@ -1341,21 +1262,6 @@
             a.click();
             URL.revokeObjectURL(url);
             showToast("마크다운 파일 다운로드 완료!");
-        }
-
-        function exportAllData() {
-            const data = {
-                worksheets: worksheets,
-                savedData: localStorage
-            };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "stock_study_archive_backup.json";
-            a.click();
-            URL.revokeObjectURL(url);
-            showToast("전체 데이터 백업 파일 내보내기 완료!");
         }
 
         function saveWorksheetsToStorage() {
