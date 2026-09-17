@@ -577,8 +577,15 @@
                         학습지 파일(.md) 업로드 공간
                     </h2>
                     <p class="text-xs text-slate-500 mt-1">
-                        새로 전달받은 학습지 마크다운 파일이나 작성한 포맷 문서를 여기에 올리면 학습지 목록에 추가됩니다.
+                        학습지 마크다운 파일을 올리면 GitHub 저장소에 저장되고 학습지 목록에 추가됩니다.
                     </p>
+                </div>
+
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-5 text-sm">
+                    <strong>GitHub 저장소에 업로드</strong>
+                    <p class="mt-1 text-xs">이 저장소에 Contents 읽기/쓰기 권한을 가진 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer" class="underline">Fine-grained 토큰</a>을 입력하세요. 업로드하면 '학습지 넣는 파일' 폴더에 저장됩니다. 토큰은 저장되지 않으며 새로고침 후 다시 입력해야 합니다.</p>
+                    <input id="github-token" type="password" autocomplete="off" spellcheck="false" aria-label="GitHub 토큰" placeholder="GitHub 토큰" class="mt-3 w-full rounded-lg border p-2 text-sm">
+                    <p id="upload-status" role="status" aria-live="polite" class="mt-2 text-xs">저장소 학습지를 불러오는 중...</p>
                 </div>
 
                 <!-- Drag and Drop Zone -->
@@ -590,9 +597,9 @@
                         <p class="text-sm font-bold text-slate-800">
                             마크다운(.md) 파일을 여기에 드래그하거나 클릭하여 선택하세요
                         </p>
-                        <p class="text-xs text-slate-400 mt-1">지원 형식: .md, .txt (마크다운 포맷 학습지)</p>
+                        <p class="text-xs text-slate-400 mt-1">지원 형식: .md (업로드 시 GitHub 저장소에 저장)</p>
                     </div>
-                    <input type="file" id="md-file-input" accept=".md,.txt" class="hidden" onchange="handleFileSelect(event)">
+                    <input type="file" id="md-file-input" accept=".md" class="hidden" onchange="handleFileSelect(event)">
                     <button onclick="document.getElementById('md-file-input').click()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-brand-600 text-white hover:bg-brand-500 transition shadow">
                         파일 찾기
                     </button>
@@ -729,6 +736,7 @@
             renderMainGrid();
             renderUploadedFileList();
             updateStats();
+            loadRepositoryWorksheets();
             
             if(activeWorksheetId) {
                 loadWorksheetFormData(activeWorksheetId);
@@ -852,81 +860,171 @@
             // Load saved form progress for this worksheet
             loadWorksheetFormData(wsId);
 
-            // Switch to study view
+            // New worksheets show their actual Markdown instead of the fixed day-one form.
+            const isSample = target.id === 'ws-samsung-1';
+            document.getElementById('study-tab-form').style.display = isSample ? '' : 'none';
+            document.getElementById('study-tab-md').textContent = isSample ? '마크다운 미리보기' : '학습지 원문';
             navigateTo('study');
+            switchStudySubTab(isSample ? 'form' : 'md');
             showToast(`'${target.title}' 학습지를 불러왔습니다.`);
         }
 
-        // Drag & Drop Setup
-        function initDropZone() {
-            const dropZone = document.getElementById('drop-zone');
+        // Public reads, authenticated writes. The token remains in the input only.
+        const REPO_API = 'https://api.github.com/repos/DDattj/EEEEEconomy-/contents/';
+        const FOLDER = '학습지 넣는 파일';
+        let uploadBusy = false;
 
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropZone.addEventListener(eventName, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropZone.classList.add('drop-zone--over');
-                }, false);
-            });
-
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    dropZone.classList.remove('drop-zone--over');
-                }, false);
-            });
-
-            dropZone.addEventListener('drop', (e) => {
-                const files = e.dataTransfer.files;
-                if (files.length) {
-                    processUploadedFile(files[0]);
-                }
-            }, false);
+        function fileApiUrl(name) {
+            return REPO_API + encodeURIComponent(FOLDER) + '/' + encodeURIComponent(name);
         }
-
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                processUploadedFile(file);
+        function uploadStatus(message, error = false) {
+            const node = document.getElementById('upload-status');
+            node.textContent = message;
+            node.className = 'mt-2 text-xs ' + (error ? 'text-red-700' : 'text-slate-600');
+        }
+        async function githubRequest(url, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: { Accept: 'application/vnd.github+json', ...(options.headers || {}) }
+            });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                const error = new Error(payload.message || 'GitHub 요청 실패');
+                error.status = response.status;
+                throw error;
             }
+            return response.json();
         }
-
-        // Process File content
-        function processUploadedFile(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const text = e.target.result;
-                const newWorksheet = parseMarkdownToWorksheet(text, file.name);
-                worksheets.unshift(newWorksheet);
+        function toBase64(text) {
+            const bytes = new TextEncoder().encode(text);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i += 8192) {
+                binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+            }
+            return btoa(binary);
+        }
+        function fromBase64(encoded) {
+            const binary = atob(encoded.replace(/\s/g, ''));
+            return new TextDecoder().decode(Uint8Array.from(binary, ch => ch.charCodeAt(0)));
+        }
+        async function loadRepositoryWorksheets() {
+            try {
+                const entries = await githubRequest(REPO_API + encodeURIComponent(FOLDER) + '?ref=main');
+                const files = entries.filter(entry => entry.type === 'file' && /\.md$/i.test(entry.name));
+                for (const entry of files) {
+                    const existing = worksheets.find(ws => ws.filename === entry.name);
+                    if (existing && existing.rawMd && existing.rawMd.length > 300) continue;
+                    try {
+                        const file = await githubRequest(fileApiUrl(entry.name) + '?ref=main');
+                        const text = fromBase64(file.content);
+                        if (existing) existing.rawMd = text;
+                        else {
+                            const worksheet = parseMarkdownToWorksheet(text, entry.name);
+                            worksheet.id = 'repo-' + entry.sha;
+                            worksheets.unshift(worksheet);
+                        }
+                    } catch (error) {
+                        console.warn('학습지 읽기 실패:', entry.name, error);
+                    }
+                }
                 saveWorksheetsToStorage();
-                
                 renderMainGrid();
                 renderUploadedFileList();
                 updateStats();
-
-                showToast(`'${file.name}' 업로드 완료! 목록에 추가되었습니다.`);
-                document.getElementById('paste-md-input').value = '';
-            };
-            reader.readAsText(file);
+                uploadStatus('GitHub 학습지 ' + files.length + '개 확인');
+            } catch (error) {
+                uploadStatus('GitHub 학습지를 읽지 못했습니다. 새로고침해 주세요.', true);
+                console.warn(error);
+            }
         }
-
-        function addWorksheetFromPastedText() {
-            const text = document.getElementById('paste-md-input').value.trim();
-            if(!text) {
-                showToast("마크다운 글을 입력해주세요.", true);
+        function initDropZone() {
+            const zone = document.getElementById('drop-zone');
+            ['dragenter', 'dragover'].forEach(type => zone.addEventListener(type, e => {
+                e.preventDefault(); e.stopPropagation(); zone.classList.add('drop-zone--over');
+            }));
+            ['dragleave', 'drop'].forEach(type => zone.addEventListener(type, e => {
+                e.preventDefault(); e.stopPropagation(); zone.classList.remove('drop-zone--over');
+            }));
+            zone.addEventListener('drop', e => {
+                if (e.dataTransfer.files[0]) processUploadedFile(e.dataTransfer.files[0]);
+            });
+        }
+        function handleFileSelect(e) {
+            if (e.target.files[0]) processUploadedFile(e.target.files[0]);
+            e.target.value = '';
+        }
+        async function saveToGithub(text, filename) {
+            const token = document.getElementById('github-token').value.trim();
+            if (!token) throw new Error('먼저 GitHub 토큰을 입력하세요.');
+            const url = fileApiUrl(filename);
+            const headers = { Authorization: 'Bearer ' + token };
+            try {
+                await githubRequest(url + '?ref=main', { headers });
+                throw new Error('같은 이름의 학습지가 이미 있습니다. 파일명을 바꿔주세요.');
+            } catch (error) {
+                if (error.status !== 404) throw error;
+            }
+            try {
+                return await githubRequest(url, {
+                    method: 'PUT',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '학습지 추가: ' + filename,
+                        content: toBase64(text),
+                        branch: 'main'
+                    })
+                });
+            } catch (error) {
+                if (error.status === 401 || error.status === 403) throw new Error('토큰과 Contents 쓰기 권한을 확인하세요.');
+                if (error.status === 422) throw new Error('같은 파일이 있거나 파일 이름이 유효하지 않습니다.');
+                throw error;
+            }
+        }
+        async function addWorksheetToGithub(text, filename) {
+            if (uploadBusy) return;
+            if (!/\.md$/i.test(filename) || filename.includes('/') || filename.includes('\\')) {
+                uploadStatus('.md 학습지 파일만 사용할 수 있습니다.', true);
                 return;
             }
-            const newWorksheet = parseMarkdownToWorksheet(text, `학습지_${worksheets.length + 1}.md`);
-            worksheets.unshift(newWorksheet);
-            saveWorksheetsToStorage();
-
-            renderMainGrid();
-            renderUploadedFileList();
-            updateStats();
-
-            document.getElementById('paste-md-input').value = '';
-            showToast("신규 학습지가 정상적으로 등록되었습니다!");
+            if (!text.trim() || new TextEncoder().encode(text).length > 1024 * 1024) {
+                uploadStatus('내용이 있는 1MB 이하 파일만 올릴 수 있습니다.', true);
+                return;
+            }
+            uploadBusy = true;
+            uploadStatus('GitHub에 저장 중...');
+            try {
+                const result = await saveToGithub(text, filename);
+                const worksheet = parseMarkdownToWorksheet(text, filename);
+                worksheet.id = 'repo-' + result.content.sha;
+                worksheets = worksheets.filter(ws => ws.filename !== filename);
+                worksheets.unshift(worksheet);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                uploadStatus('GitHub 저장 완료: ' + FOLDER + '/' + filename);
+                showToast('GitHub에 저장하고 목록에 추가했습니다.');
+            } catch (error) {
+                uploadStatus('업로드 실패: ' + error.message, true);
+                showToast('업로드 실패: ' + error.message, true);
+            } finally {
+                uploadBusy = false;
+            }
+        }
+        async function processUploadedFile(file) {
+            if (!/\.md$/i.test(file.name)) {
+                uploadStatus('.md 파일을 선택하세요.', true);
+                return;
+            }
+            await addWorksheetToGithub(await file.text(), file.name);
+        }
+        async function addWorksheetFromPastedText() {
+            const input = document.getElementById('paste-md-input');
+            const text = input.value.trim();
+            if (!text) { showToast('마크다운 글을 입력해주세요.', true); return; }
+            const filename = '학습지_' + new Date().toISOString().replace(/[:.]/g, '-') + '.md';
+            await addWorksheetToGithub(text, filename);
+            if (!document.getElementById('upload-status').classList.contains('text-red-700')) input.value = '';
         }
 
         // Parse Markdown text to extract header metadata
@@ -999,13 +1097,13 @@
         }
 
         function deleteWorksheet(id) {
-            if(confirm("정말로 이 학습지를 삭제하시겠습니까?")) {
+            if(confirm("이 브라우저의 목록에서만 제거합니다. GitHub 파일은 남아 있어 다음 방문 때 다시 나타납니다. 계속할까요?")) {
                 worksheets = worksheets.filter(w => w.id !== id);
                 saveWorksheetsToStorage();
                 renderMainGrid();
                 renderUploadedFileList();
                 updateStats();
-                showToast("학습지가 삭제되었습니다.");
+                showToast("브라우저 목록에서 제거했습니다. GitHub 파일은 유지됩니다.");
             }
         }
 
@@ -1190,6 +1288,12 @@
         function generateMarkdownPreview() {
             const data = getFormData();
             const targetWs = worksheets.find(w => w.id === activeWorksheetId) || {};
+            const isOriginal = targetWs.id !== 'ws-samsung-1';
+            document.querySelector('#study-subview-md h3').textContent = isOriginal ? '학습지 원문(.md)' : '작성 결과 마크다운(.md) 문서';
+            if (isOriginal) {
+                document.getElementById('markdown-viewer').value = targetWs.rawMd || '';
+                return;
+            }
 
             const mdText = `# ${targetWs.title || '주식 실적 학습지'}
 
@@ -1226,7 +1330,7 @@
         function downloadMarkdownFile() {
             generateMarkdownPreview();
             const targetWs = worksheets.find(w => w.id === activeWorksheetId);
-            const fileName = targetWs ? `${targetWs.date}_${targetWs.title}_작성완료.md` : "학습지_결과.md";
+            const fileName = targetWs && targetWs.id !== 'ws-samsung-1' ? targetWs.filename : (targetWs ? `${targetWs.date}_${targetWs.title}_작성완료.md` : "학습지_결과.md");
             
             const text = document.getElementById('markdown-viewer').value;
             const blob = new Blob([text], { type: "text/markdown;charset=utf-8;" });
