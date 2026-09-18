@@ -533,6 +533,9 @@
                 </div>
             </div>
 
+            <!-- Worksheet content generated from uploaded Markdown -->
+            <div id="study-subview-dynamic" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4"></div>
+
             <!-- Markdown Viewer Tab in Study Mode -->
             <div id="study-subview-md" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 hidden">
                 <div class="flex items-center justify-between">
@@ -778,15 +781,13 @@
             document.getElementById('ws-title').innerText = target.title;
             document.getElementById('ws-goal').innerText = target.goal || '실적 원문 분석 및 투자 아이디어 검증';
 
-            // Load saved form progress for this worksheet
-            loadWorksheetFormData(wsId);
-
-            // New worksheets show their actual Markdown instead of the fixed day-one form.
             const isSample = target.id === 'ws-samsung-1';
-            document.getElementById('study-tab-form').style.display = isSample ? '' : 'none';
-            document.getElementById('study-tab-md').textContent = isSample ? '마크다운 미리보기' : '학습지 원문';
+            if (isSample) loadWorksheetFormData(wsId);
+            else renderDynamicWorksheet(target);
+            document.getElementById('study-tab-form').style.display = '';
+            document.getElementById('study-tab-md').textContent = '마크다운 미리보기';
             navigateTo('study');
-            switchStudySubTab(isSample ? 'form' : 'md');
+            switchStudySubTab('form');
             showToast(`'${target.title}' 학습지를 불러왔습니다.`);
         }
 
@@ -959,10 +960,10 @@
             // Extract Date / Time / Goal line
             const metaLine = lines.find(l => l.includes('날짜') || l.includes('목표'));
             if(metaLine) {
-                const dateMatch = metaLine.match(/날짜\s*([\d년월일\s\-]+)/);
+                const dateMatch = metaLine.match(/날짜\s*:?\s*([0-9년월일.\/\-\s]+)/);
                 if(dateMatch) date = dateMatch[1].trim();
 
-                const timeMatch = metaLine.match(/예상\s*시간\s*([\d분]+)/);
+                const timeMatch = metaLine.match(/예상\s*(?:시간|소요)\s*:?\s*(\d+\s*분)/);
                 if(timeMatch) time = timeMatch[1].trim();
 
                 const goalMatch = metaLine.match(/목표\s*[\d개]*\s*(.+)/);
@@ -971,7 +972,7 @@
 
             return {
                 id: "ws-" + Date.now(),
-                day: `${worksheets.length + 1}일차`,
+                day: ((title + ' ' + filename).match(/(\d+)일차/) || [])[0] || `${worksheets.length + 1}일차`,
                 company: title.includes('삼성') ? '삼성전자' : title.includes('SK') ? 'SK하이닉스' : '종목 분석',
                 title: title,
                 date: date,
@@ -1042,6 +1043,10 @@
         // Save Progress logic
         function saveCurrentWorksheetProgress() {
             if(!activeWorksheetId) return;
+            if (activeWorksheetId !== 'ws-samsung-1') {
+                persistDynamicProgress(true);
+                return;
+            }
 
             const formData = getFormData();
             localStorage.setItem(`ws_save_${activeWorksheetId}`, JSON.stringify(formData));
@@ -1158,20 +1163,187 @@
             if(radio) radio.checked = true;
         }
 
+        // Build an interactive worksheet from Markdown without inserting file contents as HTML.
+        function dynamicStorageKey(ws) {
+            return 'ws_dynamic_' + (ws.filename || ws.id);
+        }
+
+        function readDynamicAnswers(ws) {
+            try { return JSON.parse(localStorage.getItem(dynamicStorageKey(ws))) || {}; }
+            catch (_) { return {}; }
+        }
+
+        function appendMarkdownInline(parent, source) {
+            const pattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*/g;
+            let from = 0, match;
+            while ((match = pattern.exec(source))) {
+                if (match.index > from) parent.appendChild(document.createTextNode(source.slice(from, match.index)));
+                if (match[1]) {
+                    const link = document.createElement('a');
+                    link.href = match[2];
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'text-brand-600 underline';
+                    link.textContent = match[1];
+                    parent.appendChild(link);
+                } else {
+                    const strong = document.createElement('strong');
+                    strong.textContent = match[3];
+                    parent.appendChild(strong);
+                }
+                from = pattern.lastIndex;
+            }
+            parent.appendChild(document.createTextNode(source.slice(from)));
+        }
+
+        function appendAnswerLine(parent, source, lineNo, answers) {
+            const pieces = source.split(/(_{3,})/g);
+            let blankIndex = 0;
+            pieces.forEach(piece => {
+                if (/^_{3,}$/.test(piece)) {
+                    const key = 't-' + lineNo + '-' + blankIndex++;
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.dataset.answerKey = key;
+                    input.value = answers[key] || '';
+                    input.setAttribute('aria-label', '답 입력 ' + lineNo + '-' + blankIndex);
+                    input.className = 'mx-1 my-1 w-48 max-w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm focus:border-brand-500 focus:outline-none';
+                    parent.appendChild(input);
+                } else {
+                    appendMarkdownInline(parent, piece);
+                }
+            });
+        }
+
+        function renderDynamicWorksheet(ws) {
+            const container = document.getElementById('study-subview-dynamic');
+            container.replaceChildren();
+            const answers = readDynamicAnswers(ws);
+            let currentQuestion = -1;
+            let questionText = '';
+            const lines = (ws.rawMd || '').split(/\r?\n/);
+            const hasExerciseSection = lines.some(line => /^#{2,4}\s*(학습지|문항|문제|퀴즈)/.test(line));
+            let inExercises = !hasExerciseSection;
+
+            lines.forEach((line, lineNo) => {
+                if (!line.trim()) return;
+                const heading = line.match(/^(#{1,6})\s+(.+)$/);
+                if (heading) {
+                    currentQuestion = -1;
+                    if (hasExerciseSection && heading[1].length <= 2) {
+                        inExercises = /^(학습지|문항|문제|퀴즈)/.test(heading[2]);
+                    }
+                    const title = document.createElement(heading[1].length === 1 ? 'h1' : 'h2');
+                    title.className = heading[1].length === 1
+                        ? 'text-2xl font-bold text-slate-900 pb-3 border-b border-slate-200'
+                        : 'text-lg font-bold text-slate-900 pt-5 pb-2 border-b border-slate-100';
+                    appendMarkdownInline(title, heading[2]);
+                    container.appendChild(title);
+                    return;
+                }
+                if (/^\s*---+\s*$/.test(line)) {
+                    container.appendChild(document.createElement('hr'));
+                    return;
+                }
+                const question = inExercises && line.match(/^\s*(?:\*\*)?(\d{1,3})\.(?:\*\*)?\s+(.+)$/);
+                if (question) {
+                    currentQuestion = lineNo;
+                    questionText = question[2];
+                }
+                const choice = line.match(/^\s*[-*]\s+\[([ xX])\]\s*(.*)$/);
+                if (choice) {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-start gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer';
+                    const input = document.createElement('input');
+                    input.type = currentQuestion >= 0 && !/복수|모두|여러/.test(questionText) ? 'radio' : 'checkbox';
+                    input.name = 'dynamic-group-' + (currentQuestion >= 0 ? currentQuestion : lineNo);
+                    input.dataset.answerKey = 'c-' + lineNo;
+                    input.checked = !!answers[input.dataset.answerKey];
+                    input.className = 'mt-0.5 accent-blue-600';
+                    const content = document.createElement('span');
+                    appendAnswerLine(content, choice[2], lineNo, answers);
+                    label.append(input, content);
+                    container.appendChild(label);
+                    return;
+                }
+                const paragraph = document.createElement('p');
+                paragraph.className = question
+                    ? 'pt-4 text-sm font-semibold leading-7 text-slate-900'
+                    : 'text-sm leading-7 text-slate-700';
+                let content = line;
+                if (/^\s*[-*]\s+/.test(line)) content = '• ' + line.replace(/^\s*[-*]\s+/, '');
+                appendAnswerLine(paragraph, content, lineNo, answers);
+                container.appendChild(paragraph);
+            });
+
+            const footer = document.createElement('div');
+            footer.className = 'border-t border-slate-100 pt-5 flex flex-wrap items-center justify-between gap-3';
+            const note = document.createElement('span');
+            note.className = 'text-xs text-slate-500';
+            note.textContent = '입력 내용은 이 브라우저에 자동 저장됩니다.';
+            const save = document.createElement('button');
+            save.type = 'button';
+            save.className = 'rounded-xl bg-brand-600 px-5 py-2 text-xs font-bold text-white hover:bg-brand-500';
+            save.textContent = '현재 풀이 저장하기';
+            save.addEventListener('click', () => persistDynamicProgress(true));
+            footer.append(note, save);
+            container.appendChild(footer);
+            container.oninput = () => persistDynamicProgress(false);
+            container.onchange = () => persistDynamicProgress(false);
+        }
+
+        function persistDynamicProgress(notify) {
+            const ws = worksheets.find(item => item.id === activeWorksheetId);
+            if (!ws) return;
+            const controls = Array.from(document.querySelectorAll('#study-subview-dynamic [data-answer-key]'));
+            const answers = {};
+            controls.forEach(control => {
+                answers[control.dataset.answerKey] = control.type === 'text' ? control.value : control.checked;
+            });
+            localStorage.setItem(dynamicStorageKey(ws), JSON.stringify(answers));
+            const textFields = controls.filter(control => control.type === 'text');
+            const radioGroups = new Set(controls.filter(control => control.type === 'radio').map(control => control.name));
+            ws.completed = textFields.length + radioGroups.size > 0
+                && textFields.every(control => control.value.trim())
+                && Array.from(radioGroups).every(name => controls.some(control => control.name === name && control.checked));
+            saveWorksheetsToStorage();
+            if (notify) {
+                renderMainGrid();
+                updateStats();
+                showToast('풀이를 이 브라우저에 저장했습니다.');
+            }
+        }
+
+        function dynamicMarkdownWithAnswers(ws) {
+            const answers = readDynamicAnswers(ws);
+            return (ws.rawMd || '').split(/\r?\n/).map((line, lineNo) => {
+                let blankIndex = 0;
+                let result = line.replace(/_{3,}/g, original => {
+                    const answer = answers['t-' + lineNo + '-' + blankIndex++];
+                    return answer ? String(answer).replace(/[\r\n]+/g, ' ') : original;
+                });
+                if (answers['c-' + lineNo]) result = result.replace(/^(\s*[-*]\s+)\[ \]/, '$1[x]');
+                return result;
+            }).join('\n');
+        }
+
         // Switch Sub tabs in Study Mode
         function switchStudySubTab(subTab) {
             const formView = document.getElementById('study-subview-form');
+            const dynamicView = document.getElementById('study-subview-dynamic');
             const mdView = document.getElementById('study-subview-md');
             const btnForm = document.getElementById('study-tab-form');
             const btnMd = document.getElementById('study-tab-md');
 
             if(subTab === 'form') {
-                formView.classList.remove('hidden');
+                formView.classList.toggle('hidden', activeWorksheetId !== 'ws-samsung-1');
+                dynamicView.classList.toggle('hidden', activeWorksheetId === 'ws-samsung-1');
                 mdView.classList.add('hidden');
                 btnForm.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow";
                 btnMd.className = "px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg";
             } else {
                 formView.classList.add('hidden');
+                dynamicView.classList.add('hidden');
                 mdView.classList.remove('hidden');
                 btnForm.className = "px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg";
                 btnMd.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow";
@@ -1207,14 +1379,13 @@
 
         // Generate MD Document
         function generateMarkdownPreview() {
-            const data = getFormData();
             const targetWs = worksheets.find(w => w.id === activeWorksheetId) || {};
-            const isOriginal = targetWs.id !== 'ws-samsung-1';
-            document.querySelector('#study-subview-md h3').textContent = isOriginal ? '학습지 원문(.md)' : '작성 결과 마크다운(.md) 문서';
-            if (isOriginal) {
-                document.getElementById('markdown-viewer').value = targetWs.rawMd || '';
+            document.querySelector('#study-subview-md h3').textContent = '작성 결과 마크다운(.md) 문서';
+            if (targetWs.id !== 'ws-samsung-1') {
+                document.getElementById('markdown-viewer').value = dynamicMarkdownWithAnswers(targetWs);
                 return;
             }
+            const data = getFormData();
 
             const mdText = `# ${targetWs.title || '주식 실적 학습지'}
 
