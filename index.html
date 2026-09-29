@@ -7,6 +7,10 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+        // Cloudflare Worker 배포 후 주소만 바꾸세요. 비밀키는 이 파일에 넣지 않습니다.
+        const AI_API_BASE = 'https://eeeeeconomy-ai-api.imddattj.workers.dev';
+        const AI_ACCESS_STORAGE_KEY = 'stock_archive_access_key';
+
         tailwind.config = {
             theme: {
                 extend: {
@@ -148,6 +152,18 @@
                 </div>
             </div>
 
+            <!-- AI Daily Coach -->
+            <div class="bg-gradient-to-r from-brand-600 to-brand-700 rounded-2xl p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <div class="text-xs font-semibold text-brand-100 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI 개인 학습 코치</div>
+                    <h3 class="text-lg font-bold">내 이해도에 맞춘 오늘의 학습지</h3>
+                    <p id="ai-daily-status" class="text-xs text-brand-100 mt-1">AI 백엔드 연결 후 매일 자동으로 준비됩니다.</p>
+                </div>
+                <button id="ai-generate-button" onclick="generateTodayWorksheet()" class="shrink-0 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-brand-700 shadow hover:bg-brand-50 disabled:opacity-60">
+                    <i class="fa-solid fa-sparkles mr-1"></i> 오늘 학습지 받기
+                </button>
+            </div>
+
             <!-- Filter & Search Bar -->
             <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div class="relative w-full sm:w-80">
@@ -209,6 +225,9 @@
                     </button>
                     <button onclick="saveCurrentWorksheetProgress()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition flex items-center gap-1">
                         <i class="fa-solid fa-floppy-disk"></i> 저장
+                    </button>
+                    <button id="ai-submit-button" onclick="submitCurrentWorksheetToAI()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition flex items-center gap-1">
+                        <i class="fa-solid fa-paper-plane"></i> 제출·AI 해설
                     </button>
                 </div>
             </div>
@@ -547,6 +566,17 @@
                 <textarea id="markdown-viewer" class="w-full h-96 p-4 bg-slate-900 text-slate-200 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none" readonly></textarea>
             </div>
 
+            <div id="ai-feedback-panel" class="hidden bg-white rounded-2xl border border-emerald-200 shadow-sm p-6 space-y-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-graduation-cap"></i></div>
+                    <div>
+                        <h3 class="font-bold text-slate-900">AI 학습 해설</h3>
+                        <p class="text-xs text-slate-500">이 결과는 다음 학습지의 난이도와 주제에 반영됩니다.</p>
+                    </div>
+                </div>
+                <div id="ai-feedback-content" class="space-y-4 text-sm text-slate-700"></div>
+            </div>
+
         </section>
 
 
@@ -566,10 +596,9 @@
                     </p>
                 </div>
 
-                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-5 text-sm">
-                    <strong>GitHub 저장소에 업로드</strong>
-                    <p class="mt-1 text-xs">이 저장소에 Contents 읽기/쓰기 권한을 가진 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer" class="underline">Fine-grained 토큰</a>을 입력하세요. 업로드하면 '학습지 넣는 파일' 폴더에 저장됩니다. 토큰은 저장되지 않으며 새로고침 후 다시 입력해야 합니다.</p>
-                    <input id="github-token" type="password" autocomplete="off" spellcheck="false" aria-label="GitHub 토큰" placeholder="GitHub 토큰" class="mt-3 w-full rounded-lg border p-2 text-sm">
+                <div class="rounded-xl border border-brand-100 bg-brand-50 p-4 mb-5 text-sm">
+                    <strong>GitHub 저장소 자동 연동</strong>
+                    <p class="mt-1 text-xs text-slate-600">파일을 선택하면 보안 백엔드를 통해 '학습지 넣는 파일' 폴더에 저장됩니다.</p>
                     <p id="upload-status" role="status" aria-live="polite" class="mt-2 text-xs">저장소 학습지를 불러오는 중...</p>
                 </div>
 
@@ -611,8 +640,8 @@
                         <i class="fa-solid fa-folder-tree text-brand-500"></i>
                         현재 등록된 학습지 파일 관리
                     </h3>
-                    <button onclick="resetToSampleData()" class="text-xs text-red-500 hover:text-red-600 font-medium">
-                        <i class="fa-solid fa-rotate-left"></i> 기본 샘플로 초기화
+                    <button onclick="resetToSampleData()" class="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                        <i class="fa-solid fa-rotate"></i> GitHub 목록 새로고침
                     </button>
                 </div>
 
@@ -650,7 +679,7 @@
         ];
 
         // State variables
-        let worksheets = JSON.parse(localStorage.getItem('stock_archive_worksheets')) || sampleWorksheets;
+        let worksheets = JSON.parse(localStorage.getItem('stock_archive_worksheets')) || [];
         let activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
         let currentFilter = 'all';
 
@@ -661,6 +690,7 @@
             renderUploadedFileList();
             updateStats();
             loadRepositoryWorksheets();
+            loadTodayWorksheetFromAI();
             
             if(activeWorksheetId) {
                 loadWorksheetFormData(activeWorksheetId);
@@ -687,6 +717,102 @@
             });
 
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Markdown metadata is text, never trusted HTML.
+        function escapeHtml(value) {
+            const node = document.createElement('span');
+            node.textContent = String(value);
+            return node.innerHTML;
+        }
+
+        function aiBackendConfigured() {
+            return AI_API_BASE && !AI_API_BASE.includes('YOUR-WORKER');
+        }
+
+        function getArchiveAccessKey() {
+            let key = localStorage.getItem(AI_ACCESS_STORAGE_KEY) || '';
+            if (!key) {
+                key = prompt('개인 학습 백엔드 접근키를 입력하세요. 이 브라우저에만 저장됩니다.') || '';
+                if (key) localStorage.setItem(AI_ACCESS_STORAGE_KEY, key);
+            }
+            return key;
+        }
+
+        async function aiApi(path, options = {}) {
+            if (!aiBackendConfigured()) throw new Error('index.html의 AI_API_BASE에 Worker 주소를 먼저 입력하세요.');
+            const key = getArchiveAccessKey();
+            if (!key) throw new Error('개인용 접근키가 필요합니다.');
+            const response = await fetch(AI_API_BASE.replace(/\/$/, '') + path, {
+                ...options,
+                headers: { 'Content-Type': 'application/json', 'X-Archive-Key': key, ...(options.headers || {}) }
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 401) localStorage.removeItem(AI_ACCESS_STORAGE_KEY);
+                throw new Error(payload.error || 'AI 백엔드 요청에 실패했습니다.');
+            }
+            return payload;
+        }
+
+        function aiWorksheetToLocal(item) {
+            return {
+                id: 'ai-' + item.id,
+                remoteId: item.id,
+                day: item.content?.day || '오늘',
+                company: 'AI 맞춤 학습',
+                title: item.title,
+                date: item.study_date,
+                time: (item.time_minutes || 30) + '분',
+                goal: item.goal,
+                filename: `AI_${item.study_date}_${item.id}.md`,
+                completed: item.status === 'completed',
+                rawMd: item.markdown,
+                aiGenerated: true
+            };
+        }
+
+        async function loadTodayWorksheetFromAI() {
+            const status = document.getElementById('ai-daily-status');
+            if (!aiBackendConfigured()) return;
+            status.textContent = '오늘의 맞춤 학습지를 확인하는 중...';
+            try {
+                const item = await aiApi('/api/today');
+                const worksheet = aiWorksheetToLocal(item);
+                worksheets = worksheets.filter(ws => ws.id !== worksheet.id && ws.remoteId !== worksheet.remoteId);
+                worksheets.unshift(worksheet);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                status.textContent = `오늘 학습지 준비 완료: ${item.title}`;
+            } catch (error) {
+                status.textContent = error.message;
+            }
+        }
+
+        async function generateTodayWorksheet() {
+            const button = document.getElementById('ai-generate-button');
+            const status = document.getElementById('ai-daily-status');
+            button.disabled = true;
+            status.textContent = '이해도 기록을 반영해 학습지를 만드는 중...';
+            try {
+                const item = await aiApi('/api/generate', { method: 'POST', body: '{}' });
+                const worksheet = aiWorksheetToLocal(item);
+                worksheets = worksheets.filter(ws => ws.remoteId !== worksheet.remoteId && !(ws.aiGenerated && ws.date === worksheet.date));
+                worksheets.unshift(worksheet);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                status.textContent = `새 학습지 준비 완료: ${item.title}`;
+                openWorksheetForStudy(worksheet.id);
+            } catch (error) {
+                status.textContent = error.message;
+                showToast(error.message, true);
+            } finally {
+                button.disabled = false;
+            }
         }
 
         // Render Main Page Grid
@@ -726,21 +852,21 @@
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
                             <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${ws.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-brand-50 text-brand-600 border border-brand-100'}">
-                                ${ws.day || '학습지'}
+                                ${escapeHtml(ws.day || '학습지')}
                             </span>
-                            <span class="text-xs text-slate-400 font-mono">${ws.date || ''}</span>
+                            <span class="text-xs text-slate-400 font-mono">${escapeHtml(ws.date || '')}</span>
                         </div>
                         <h4 class="font-bold text-slate-900 text-base group-hover:text-brand-600 transition line-clamp-2">
-                            ${ws.title}
+                            ${escapeHtml(ws.title)}
                         </h4>
                         <p class="text-xs text-slate-500 line-clamp-2">
-                            ${ws.goal ? '목표: ' + ws.goal : '주식 실적 및 원문 분석 학습지'}
+                            ${escapeHtml(ws.goal ? '목표: ' + ws.goal : '주식 실적 및 원문 분석 학습지')}
                         </p>
                     </div>
 
                     <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                         <span class="text-slate-400 flex items-center gap-1">
-                            <i class="fa-regular fa-clock"></i> ${ws.time || '30~45분'}
+                            <i class="fa-regular fa-clock"></i> ${escapeHtml(ws.time || '30~45분')}
                         </span>
                         <span class="font-semibold ${ws.completed ? 'text-emerald-600' : 'text-brand-600'} flex items-center gap-1">
                             ${ws.completed ? '<i class="fa-solid fa-circle-check"></i> 학습 완료' : '공부 시작하기 <i class="fa-solid fa-chevron-right text-[10px]"></i>'}
@@ -784,6 +910,8 @@
             const isSample = target.id === 'ws-samsung-1';
             if (isSample) loadWorksheetFormData(wsId);
             else renderDynamicWorksheet(target);
+            document.getElementById('ai-submit-button').classList.toggle('hidden', !target.aiGenerated);
+            document.getElementById('ai-feedback-panel').classList.add('hidden');
             document.getElementById('study-tab-form').style.display = '';
             document.getElementById('study-tab-md').textContent = '마크다운 미리보기';
             navigateTo('study');
@@ -795,6 +923,7 @@
         const REPO_API = 'https://api.github.com/repos/DDattj/EEEEEconomy-/contents/';
         const FOLDER = '학습지 넣는 파일';
         let uploadBusy = false;
+        let deleteBusy = false;
 
         function fileApiUrl(name) {
             return REPO_API + encodeURIComponent(FOLDER) + '/' + encodeURIComponent(name);
@@ -831,8 +960,11 @@
         }
         async function loadRepositoryWorksheets() {
             try {
-                const entries = await githubRequest(REPO_API + encodeURIComponent(FOLDER) + '?ref=main');
+                const entries = await githubRequest(REPO_API + encodeURIComponent(FOLDER) + '?ref=main')
+                    .catch(error => { if (error.status === 404) return []; throw error; });
                 const files = entries.filter(entry => entry.type === 'file' && /\.md$/i.test(entry.name));
+                const remoteNames = new Set(files.map(entry => entry.name));
+                worksheets = worksheets.filter(ws => ws.aiGenerated || remoteNames.has(ws.filename));
                 for (const entry of files) {
                     const existing = worksheets.find(ws => ws.filename === entry.name);
                     if (existing && existing.rawMd && existing.rawMd.length > 300) continue;
@@ -842,7 +974,7 @@
                         if (existing) existing.rawMd = text;
                         else {
                             const worksheet = parseMarkdownToWorksheet(text, entry.name);
-                            worksheet.id = 'repo-' + entry.sha;
+                            worksheet.id = entry.name === sampleWorksheets[0].filename ? 'ws-samsung-1' : 'repo-' + entry.sha;
                             worksheets.unshift(worksheet);
                         }
                     } catch (error) {
@@ -850,6 +982,9 @@
                     }
                 }
                 saveWorksheetsToStorage();
+                if (!worksheets.some(ws => ws.id === activeWorksheetId)) {
+                    activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+                }
                 renderMainGrid();
                 renderUploadedFileList();
                 updateStats();
@@ -876,31 +1011,10 @@
             e.target.value = '';
         }
         async function saveToGithub(text, filename) {
-            const token = document.getElementById('github-token').value.trim();
-            if (!token) throw new Error('먼저 GitHub 토큰을 입력하세요.');
-            const url = fileApiUrl(filename);
-            const headers = { Authorization: 'Bearer ' + token };
-            try {
-                await githubRequest(url + '?ref=main', { headers });
-                throw new Error('같은 이름의 학습지가 이미 있습니다. 파일명을 바꿔주세요.');
-            } catch (error) {
-                if (error.status !== 404) throw error;
-            }
-            try {
-                return await githubRequest(url, {
-                    method: 'PUT',
-                    headers: { ...headers, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: '학습지 추가: ' + filename,
-                        content: toBase64(text),
-                        branch: 'main'
-                    })
-                });
-            } catch (error) {
-                if (error.status === 401 || error.status === 403) throw new Error('토큰과 Contents 쓰기 권한을 확인하세요.');
-                if (error.status === 422) throw new Error('같은 파일이 있거나 파일 이름이 유효하지 않습니다.');
-                throw error;
-            }
+            return aiApi('/api/files', {
+                method: 'POST',
+                body: JSON.stringify({ filename, content: text })
+            });
         }
         async function addWorksheetToGithub(text, filename) {
             if (uploadBusy) return;
@@ -917,7 +1031,7 @@
             try {
                 const result = await saveToGithub(text, filename);
                 const worksheet = parseMarkdownToWorksheet(text, filename);
-                worksheet.id = 'repo-' + result.content.sha;
+                worksheet.id = 'repo-' + result.sha;
                 worksheets = worksheets.filter(ws => ws.filename !== filename);
                 worksheets.unshift(worksheet);
                 saveWorksheetsToStorage();
@@ -987,57 +1101,82 @@
         // Render File Management List in Upload View
         function renderUploadedFileList() {
             const container = document.getElementById('uploaded-file-list');
-            container.innerHTML = '';
-
-            worksheets.forEach((ws, idx) => {
+            container.replaceChildren();
+            worksheets.forEach(ws => {
                 const item = document.createElement('div');
-                item.className = "p-4 bg-white flex items-center justify-between hover:bg-slate-50 transition flex-wrap gap-2";
-                item.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center font-bold text-xs">
-                            <i class="fa-regular fa-file-lines"></i>
-                        </div>
-                        <div>
-                            <div class="font-bold text-slate-800 text-xs sm:text-sm">${ws.title}</div>
-                            <div class="text-[11px] text-slate-400 font-mono">${ws.filename || 'markdown.md'} • ${ws.date}</div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        <button onclick="openWorksheetForStudy('${ws.id}')" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800">
-                            공부하기
-                        </button>
-                        ${worksheets.length > 1 ? `
-                        <button onclick="deleteWorksheet('${ws.id}')" class="p-1.5 text-xs text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                        ` : ''}
-                    </div>
-                `;
+                item.className = 'p-4 bg-white flex items-center justify-between hover:bg-slate-50 transition flex-wrap gap-2';
+                const details = document.createElement('div');
+                details.className = 'flex items-center gap-3';
+                const icon = document.createElement('span');
+                icon.className = 'w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center';
+                icon.textContent = '▤';
+                const labels = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'font-bold text-slate-800 text-xs sm:text-sm';
+                title.textContent = ws.title;
+                const filename = document.createElement('div');
+                filename.className = 'text-[11px] text-slate-400 font-mono';
+                filename.textContent = (ws.filename || 'markdown.md') + ' • ' + (ws.date || '');
+                labels.append(title, filename);
+                details.append(icon, labels);
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-2';
+                const study = document.createElement('button');
+                study.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800';
+                study.textContent = '공부하기';
+                study.addEventListener('click', () => openWorksheetForStudy(ws.id));
+                const remove = document.createElement('button');
+                remove.className = 'p-1.5 text-xs text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50';
+                remove.title = 'GitHub 파일 삭제';
+                remove.setAttribute('aria-label', ws.title + ' GitHub에서 삭제');
+                const trash = document.createElement('i');
+                trash.className = 'fa-solid fa-trash-can';
+                remove.appendChild(trash);
+                remove.addEventListener('click', () => deleteWorksheet(ws.id));
+                actions.appendChild(study);
+                if (!ws.aiGenerated) actions.appendChild(remove);
+                item.append(details, actions);
                 container.appendChild(item);
             });
         }
 
-        function deleteWorksheet(id) {
-            if(confirm("이 브라우저의 목록에서만 제거합니다. GitHub 파일은 남아 있어 다음 방문 때 다시 나타납니다. 계속할까요?")) {
-                worksheets = worksheets.filter(w => w.id !== id);
+        // The Worker holds the GitHub token and performs the deletion commit.
+        async function deleteWorksheet(id) {
+            if (deleteBusy || uploadBusy) return;
+            const ws = worksheets.find(item => item.id === id);
+            if (!ws || !ws.filename) return;
+            if (ws.aiGenerated) return;
+            if (!confirm('GitHub 저장소의 학습지 넣는 파일/' + ws.filename + ' 파일을 삭제하시겠습니까?')) return;
+            deleteBusy = true;
+            uploadStatus('GitHub 파일 삭제 중: ' + ws.filename);
+            try {
+                await aiApi('/api/files/' + encodeURIComponent(ws.filename), { method: 'DELETE' });
+                worksheets = worksheets.filter(item => item.id !== id);
+                localStorage.removeItem('ws_save_' + id);
+                localStorage.removeItem(dynamicStorageKey(ws));
+                if (activeWorksheetId === id) activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
                 saveWorksheetsToStorage();
                 renderMainGrid();
                 renderUploadedFileList();
                 updateStats();
-                showToast("브라우저 목록에서 제거했습니다. GitHub 파일은 유지됩니다.");
+                uploadStatus('GitHub에서 삭제 완료: ' + ws.filename);
+                showToast('GitHub 파일과 학습지 목록에서 삭제했습니다.');
+            } catch (error) {
+                const message = error.status === 401 || error.status === 403
+                    ? '토큰의 Contents 읽기/쓰기 권한을 확인하세요.'
+                    : error.status === 409 || error.status === 422
+                        ? '파일이 변경됐습니다. 목록을 새로고침하고 다시 시도하세요.'
+                        : error.message;
+                uploadStatus('삭제 실패: ' + message, true);
+                showToast('삭제 실패: ' + message, true);
+            } finally {
+                deleteBusy = false;
             }
         }
 
-        function resetToSampleData() {
-            if(confirm("기본 예시 학습지로 초기화하시겠습니까? (작성 중인 내용이 리셋될 수 있습니다)")) {
-                worksheets = sampleWorksheets;
-                saveWorksheetsToStorage();
-                renderMainGrid();
-                renderUploadedFileList();
-                updateStats();
-                showToast("기본 샘플 데이터로 리셋되었습니다.");
-            }
+        async function resetToSampleData() {
+            if (!confirm('GitHub 저장소의 학습지 목록을 다시 불러오시겠습니까?')) return;
+            await loadRepositoryWorksheets();
         }
 
         // Save Progress logic
@@ -1325,6 +1464,87 @@
                 if (answers['c-' + lineNo]) result = result.replace(/^(\s*[-*]\s+)\[ \]/, '$1[x]');
                 return result;
             }).join('\n');
+        }
+
+        function currentDynamicAnswers(ws) {
+            persistDynamicProgress(false);
+            return readDynamicAnswers(ws);
+        }
+
+        async function submitCurrentWorksheetToAI() {
+            const ws = worksheets.find(item => item.id === activeWorksheetId);
+            if (!ws?.aiGenerated || !ws.remoteId) {
+                showToast('AI가 생성한 학습지만 바로 제출할 수 있습니다.', true);
+                return;
+            }
+            persistDynamicProgress(false);
+            const button = document.getElementById('ai-submit-button');
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 해설 생성 중';
+            try {
+                const result = await aiApi('/api/submit', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        worksheetId: ws.remoteId,
+                        answers: currentDynamicAnswers(ws),
+                        completedMarkdown: dynamicMarkdownWithAnswers(ws)
+                    })
+                });
+                ws.completed = true;
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                updateStats();
+                renderAiFeedback(result.feedback);
+                showToast('제출 완료! AI 해설과 이해도 기록을 저장했습니다.');
+            } catch (error) {
+                showToast(error.message, true);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 제출·AI 해설';
+            }
+        }
+
+        function renderAiFeedback(feedback) {
+            const panel = document.getElementById('ai-feedback-panel');
+            const content = document.getElementById('ai-feedback-content');
+            content.replaceChildren();
+
+            const summary = document.createElement('div');
+            summary.className = 'rounded-xl bg-emerald-50 border border-emerald-100 p-4 leading-7';
+            summary.textContent = feedback.overall_summary || '해설이 생성되었습니다.';
+            content.appendChild(summary);
+
+            (feedback.per_question || []).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'rounded-xl border border-slate-200 p-4';
+                const heading = document.createElement('div');
+                heading.className = 'font-bold text-slate-900 mb-2';
+                heading.textContent = `${item.question_id} · 이해도 ${item.score}점`;
+                const good = document.createElement('p');
+                good.className = 'text-emerald-700 mb-1';
+                good.textContent = '잘한 점: ' + item.what_was_good;
+                const correction = document.createElement('p');
+                correction.textContent = '보완할 점: ' + item.correction;
+                card.append(heading, good, correction);
+                content.appendChild(card);
+            });
+
+            const next = document.createElement('div');
+            next.className = 'rounded-xl bg-slate-900 text-white p-4';
+            const nextTitle = document.createElement('div');
+            nextTitle.className = 'font-bold mb-2';
+            nextTitle.textContent = '다음 학습 초점';
+            const list = document.createElement('ul');
+            list.className = 'list-disc list-inside text-xs text-slate-200 space-y-1';
+            (feedback.next_focus || []).forEach(value => {
+                const item = document.createElement('li');
+                item.textContent = value;
+                list.appendChild(item);
+            });
+            next.append(nextTitle, list);
+            content.appendChild(next);
+            panel.classList.remove('hidden');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // Switch Sub tabs in Study Mode
