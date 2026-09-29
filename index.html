@@ -750,7 +750,9 @@
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
                 if (response.status === 401) localStorage.removeItem(AI_ACCESS_STORAGE_KEY);
-                throw new Error(payload.error || 'AI 백엔드 요청에 실패했습니다.');
+                const error = new Error(payload.error || 'AI 백엔드 요청에 실패했습니다.');
+                error.status = response.status;
+                throw error;
             }
             return payload;
         }
@@ -815,6 +817,22 @@
             }
         }
 
+        function worksheetDateValue(ws) {
+            const source = `${ws.filename || ''} ${ws.date || ''}`;
+            const match = source.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+            return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : 0;
+        }
+
+        function worksheetNotebookLabel(ws) {
+            const ordered = [...worksheets].sort((a, b) => {
+                const dateDifference = worksheetDateValue(a) - worksheetDateValue(b);
+                if (dateDifference) return dateDifference;
+                return String(a.filename || a.id).localeCompare(String(b.filename || b.id), 'ko');
+            });
+            const index = ordered.findIndex(item => item.id === ws.id);
+            return `📝${index >= 0 ? index + 1 : 1}`;
+        }
+
         // Render Main Page Grid
         function renderMainGrid() {
             const gridEl = document.getElementById('worksheet-grid');
@@ -852,7 +870,7 @@
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
                             <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${ws.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-brand-50 text-brand-600 border border-brand-100'}">
-                                ${escapeHtml(ws.day || '학습지')}
+                                ${escapeHtml(worksheetNotebookLabel(ws))}
                             </span>
                             <span class="text-xs text-slate-400 font-mono">${escapeHtml(ws.date || '')}</span>
                         </div>
@@ -901,7 +919,7 @@
             if (!target) return;
 
             // Populate Study Header
-            document.getElementById('ws-badge').innerText = target.day || '학습지';
+            document.getElementById('ws-badge').innerText = worksheetNotebookLabel(target);
             document.getElementById('ws-date').innerText = target.date || '날짜 미지정';
             document.getElementById('ws-time').innerText = target.time || '45분';
             document.getElementById('ws-title').innerText = target.title;
@@ -1150,7 +1168,14 @@
             deleteBusy = true;
             uploadStatus('GitHub 파일 삭제 중: ' + ws.filename);
             try {
-                await aiApi('/api/files/' + encodeURIComponent(ws.filename), { method: 'DELETE' });
+                const result = await aiApi('/api/files/' + encodeURIComponent(ws.filename), { method: 'DELETE' });
+                if (!result?.deleted) throw new Error('GitHub 파일 삭제 결과를 확인하지 못했습니다.');
+                try {
+                    await githubRequest(fileApiUrl(ws.filename) + '?ref=main');
+                    throw new Error('GitHub에 파일이 아직 남아 있습니다. 잠시 후 다시 시도하세요.');
+                } catch (verificationError) {
+                    if (verificationError.status !== 404) throw verificationError;
+                }
                 worksheets = worksheets.filter(item => item.id !== id);
                 localStorage.removeItem('ws_save_' + id);
                 localStorage.removeItem(dynamicStorageKey(ws));
@@ -1354,6 +1379,18 @@
             });
         }
 
+        function questionNeedsTextarea(lines, lineNo) {
+            for (let index = lineNo + 1; index < lines.length; index++) {
+                const next = lines[index];
+                if (!next.trim()) continue;
+                if (/^(#{1,6})\s+/.test(next) || /^\s*(?:\*\*)?\d{1,3}\.(?:\*\*)?\s+/.test(next)) return true;
+                if (/^\s*[-*]\s+\[[ xX]\]\s*/.test(next)) return false;
+                if (/_{3,}/.test(next)) return false;
+                return true;
+            }
+            return true;
+        }
+
         function renderDynamicWorksheet(ws) {
             const container = document.getElementById('study-subview-dynamic');
             container.replaceChildren();
@@ -1413,6 +1450,17 @@
                 if (/^\s*[-*]\s+/.test(line)) content = '• ' + line.replace(/^\s*[-*]\s+/, '');
                 appendAnswerLine(paragraph, content, lineNo, answers);
                 container.appendChild(paragraph);
+                if (question && questionNeedsTextarea(lines, lineNo)) {
+                    const key = 'q-' + lineNo;
+                    const textarea = document.createElement('textarea');
+                    textarea.dataset.answerKey = key;
+                    textarea.value = answers[key] || '';
+                    textarea.rows = 4;
+                    textarea.placeholder = '내 생각과 근거를 작성하세요.';
+                    textarea.setAttribute('aria-label', question[1] + '번 주관식 답변');
+                    textarea.className = 'mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm leading-6 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
+                    container.appendChild(textarea);
+                }
             });
 
             const footer = document.createElement('div');
@@ -1437,10 +1485,11 @@
             const controls = Array.from(document.querySelectorAll('#study-subview-dynamic [data-answer-key]'));
             const answers = {};
             controls.forEach(control => {
-                answers[control.dataset.answerKey] = control.type === 'text' ? control.value : control.checked;
+                const isTextControl = control.tagName === 'TEXTAREA' || control.type === 'text';
+                answers[control.dataset.answerKey] = isTextControl ? control.value : control.checked;
             });
             localStorage.setItem(dynamicStorageKey(ws), JSON.stringify(answers));
-            const textFields = controls.filter(control => control.type === 'text');
+            const textFields = controls.filter(control => control.tagName === 'TEXTAREA' || control.type === 'text');
             const radioGroups = new Set(controls.filter(control => control.type === 'radio').map(control => control.name));
             ws.completed = textFields.length + radioGroups.size > 0
                 && textFields.every(control => control.value.trim())
@@ -1462,6 +1511,9 @@
                     return answer ? String(answer).replace(/[\r\n]+/g, ' ') : original;
                 });
                 if (answers['c-' + lineNo]) result = result.replace(/^(\s*[-*]\s+)\[ \]/, '$1[x]');
+                if (answers['q-' + lineNo]) {
+                    result += '\n\n> 내 답변: ' + String(answers['q-' + lineNo]).replace(/[\r\n]+/g, ' ');
+                }
                 return result;
             }).join('\n');
         }
