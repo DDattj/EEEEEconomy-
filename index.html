@@ -1,419 +1,1526 @@
-const WORKSHEET_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["title", "day", "goal", "time_minutes", "sections"],
-  properties: {
-    title: { type: "string" },
-    day: { type: "string" },
-    goal: { type: "string" },
-    time_minutes: { type: "integer", minimum: 10, maximum: 90 },
-    sections: {
-      type: "array",
-      minItems: 2,
-      maxItems: 5,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["title", "questions"],
-        properties: {
-          title: { type: "string" },
-          questions: {
-            type: "array",
-            minItems: 1,
-            maxItems: 6,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["id", "type", "prompt", "options", "placeholder"],
-              properties: {
-                id: { type: "string" },
-                type: { type: "string", enum: ["short", "single", "multiple"] },
-                prompt: { type: "string" },
-                options: { type: "array", items: { type: "string" }, maxItems: 6 },
-                placeholder: { type: "string" }
-              }
+<!DOCTYPE html>
+<html lang="ko" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주식 공부 아카이빙 대시보드 | My Stock Study Archive</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            200: '#bae0fd',
+                            500: '#2563eb',
+                            600: '#1d4ed8',
+                            700: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
             }
-          }
         }
-      }
-    }
-  }
-};
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter & Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .drop-zone--over { border-color: #2563eb !important; background-color: #eff6ff !important; }
+    </style>
+</head>
+<body class="h-full text-slate-800 flex flex-col antialiased selection:bg-brand-500 selection:text-white">
 
-const FEEDBACK_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["overall_summary", "per_question", "mastery_updates", "next_focus"],
-  properties: {
-    overall_summary: { type: "string" },
-    per_question: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["question_id", "score", "what_was_good", "correction"],
-        properties: {
-          question_id: { type: "string" },
-          score: { type: "integer", minimum: 0, maximum: 100 },
-          what_was_good: { type: "string" },
-          correction: { type: "string" }
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo & Title -->
+                <div class="flex items-center space-x-3 cursor-pointer lg:flex-1" onclick="navigateTo('main')">
+                    <div class="bg-brand-500 text-white p-2.5 rounded-xl shadow-lg flex items-center justify-center">
+                        <i class="fa-solid fa-chart-line text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight flex items-center gap-2">
+                            투자의 정석 <span class="bg-brand-500/20 text-brand-200 text-[10px] px-2 py-0.5 rounded-full border border-brand-500/30">Archive</span>
+                        </h1>
+                        <p class="text-xs text-slate-400">주식 실적 학습지 & 개인 공부 아카이브</p>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <nav class="hidden md:flex items-center space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/50">
+                    <button id="nav-btn-main" onclick="navigateTo('main')" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 bg-brand-600 text-white shadow">
+                        <i class="fa-solid fa-grid-2"></i>
+                        <span>학습지 목록</span>
+                    </button>
+                    <button id="nav-btn-upload" onclick="navigateTo('upload')" class="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-arrow-up"></i>
+                        <span>학습지 업로드 / 관리</span>
+                    </button>
+                </nav>
+                <div class="hidden lg:block lg:flex-1" aria-hidden="true"></div>
+            </div>
+        </div>
+
+        <!-- Mobile Navigation Bar -->
+        <div class="md:hidden flex border-t border-slate-800 bg-slate-900 px-2 py-1.5 justify-around text-xs">
+            <button onclick="navigateTo('main')" id="mob-nav-main" class="flex-1 py-1.5 text-center text-brand-400 font-semibold flex flex-col items-center gap-1">
+                <i class="fa-solid fa-folder-open text-base"></i>
+                <span>목록</span>
+            </button>
+            <button onclick="navigateTo('upload')" id="mob-nav-upload" class="flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1">
+                <i class="fa-solid fa-file-arrow-up text-base"></i>
+                <span>파일업로드</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 1: MAIN DASHBOARD (학습지 목록 메인 페이지) -->
+        <!-- ==================================================================== -->
+        <section id="view-main" class="space-y-6">
+            
+            <!-- Welcome Header & Stats Widget -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <!-- Banner -->
+                <div class="lg:col-span-2 bg-gradient-to-r from-slate-900 via-slate-800 to-brand-900 text-white rounded-2xl p-6 shadow-lg flex flex-col justify-between relative overflow-hidden">
+                    <div class="absolute right-0 top-0 translate-x-4 -translate-y-4 opacity-10 text-white">
+                        <i class="fa-solid fa-book-bookmark text-[180px]"></i>
+                    </div>
+                    <div class="relative z-10 space-y-2">
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30 text-xs font-semibold">
+                            <i class="fa-solid fa-circle-play text-[10px] text-emerald-400"></i> 주식 실적 학습지 아카이브
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">나만의 주식 공부 노트</h2>
+                        <p class="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                            실적 발표 원문에서 '확인된 사실'과 '내 추측'을 구별하며 투자의 지평을 넓힙니다. 학습지를 선택하여 바로 공부를 시작하세요!
+                        </p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300 relative z-10">
+                        <span>현재 등록된 학습지: <strong class="text-white" id="stat-main-total-badge">1개</strong></span>
+                        <button onclick="navigateTo('upload')" class="text-brand-300 hover:text-white font-medium flex items-center gap-1">
+                            .md 학습지 파일 추가하기 <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
+                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                        <span>학습 진도 요약</span>
+                        <i class="fa-solid fa-chart-pie text-brand-500"></i>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                            <div class="text-xs text-slate-500 mb-1">전체 학습지</div>
+                            <div class="text-2xl font-bold text-slate-900" id="stat-total">1</div>
+                        </div>
+                        <div class="bg-emerald-50 p-3.5 rounded-xl border border-emerald-100">
+                            <div class="text-xs text-emerald-700 mb-1">완료한 학습</div>
+                            <div class="text-2xl font-bold text-emerald-600" id="stat-completed">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-slate-600 mb-1.5">
+                            <span>전체 달성률</span>
+                            <span id="stat-progress-percent">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                            <div id="stat-progress-bar" class="bg-brand-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter & Search Bar -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="search-input" onkeyup="filterWorksheets()" placeholder="학습지 제목 또는 종목 검색..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 bg-slate-50">
+                </div>
+
+                <div class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                    <button onclick="setFilter('all')" id="filter-all" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white shadow-sm flex-shrink-0">
+                        전체 보기
+                    </button>
+                    <button onclick="setFilter('in-progress')" id="filter-in-progress" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex-shrink-0">
+                        진행 중
+                    </button>
+                    <button onclick="setFilter('completed')" id="filter-completed" class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex-shrink-0">
+                        완료됨
+                    </button>
+                </div>
+            </div>
+
+            <!-- Worksheets Cards Grid -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-book-open text-brand-500"></i>
+                        공부할 학습지 선택
+                    </h3>
+                    <button onclick="navigateTo('upload')" class="text-xs text-brand-600 font-semibold hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-upload"></i> 새 학습지 등록
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="worksheet-grid">
+                    <!-- Cards will be populated by JS -->
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 2: WORKSHEET STUDY MODE (학습지 풀기/공부 페이지) -->
+        <!-- ==================================================================== -->
+        <section id="view-study" class="hidden space-y-6">
+            
+            <!-- Top Bar Nav back to list -->
+            <div class="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-sm flex-wrap gap-3">
+                <button onclick="navigateTo('main')" class="text-xs font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl hover:bg-slate-200 transition">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    <span>학습지 목록으로 돌아가기</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="switchStudySubTab('form')" id="study-tab-form" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow">
+                        <i class="fa-solid fa-pen-to-square mr-1"></i> 대화형 풀이
+                    </button>
+                    <button onclick="switchStudySubTab('md')" id="study-tab-md" class="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg">
+                        <i class="fa-regular fa-file-code mr-1"></i> 마크다운 미리보기
+                    </button>
+                    <button onclick="saveCurrentWorksheetProgress()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition flex items-center gap-1">
+                        <i class="fa-solid fa-floppy-disk"></i> 저장
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive Worksheet Container -->
+            <div id="study-subview-form" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-8">
+                
+                <!-- Dynamic Header Info -->
+                <div class="border-b border-slate-100 pb-5">
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-600 border border-brand-100" id="ws-badge">1일차</span>
+                        <span class="text-xs text-slate-400" id="ws-date">2026년 9월 17일</span>
+                        <span class="text-xs text-slate-400">• 예상 시간: <span id="ws-time">45분</span></span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-900" id="ws-title">삼성전자 실적과 내 투자 생각 점검</h2>
+                    <p class="text-sm text-slate-600 mt-2 flex items-center gap-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                        <i class="fa-solid fa-bullseye text-brand-500 text-base"></i>
+                        <span>목표: <strong id="ws-goal">같은 회사 안에서도 휴대폰과 반도체의 이익 흐름이 다른지 확인한다</strong></span>
+                    </p>
+                </div>
+
+                <!-- Reference Box -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-sm">
+                    <div class="font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-book-open text-brand-500"></i> 오늘 볼 자료와 범위
+                    </div>
+                    <p class="text-slate-600 text-xs leading-relaxed" id="ws-ref-link">
+                        <a href="https://news.samsung.com/global/samsung-electronics-announces-second-quarter-2026-results" target="_blank" class="text-brand-600 underline font-medium">
+                            [삼성전자 2026년 2분기 실적 발표] <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                        </a>
+                        에서 아래 두 소제목만 읽습니다.
+                    </p>
+                    <ul class="list-disc list-inside text-xs text-slate-600 space-y-1 pl-1" id="ws-ref-list">
+                        <li><strong>DS To Maintain Growth Momentum While Advancing Technology Leadership</strong> 중 첫 두 문단</li>
+                        <li><strong>MX To Expand Flagship-Led Sales With Competitiveness of New Products</strong> 중 첫 문단</li>
+                    </ul>
+                    <div class="text-[11px] text-slate-500 bg-white p-2.5 rounded-lg border border-slate-200 mt-2">
+                        💡 <strong>Tip:</strong> 영문 읽기가 부담되면 브라우저 번역을 켜도 됩니다. 보고서는 2026년 7월 30일 발표된 4~6월 실적이며 '하반기 예상'은 확정 결과가 아닙니다.
+                    </div>
+                </div>
+
+                <!-- SECTION A -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">A</span>
+                        <h3 class="font-bold text-slate-900 text-base">읽기 전 내 생각 <span class="text-xs font-normal text-slate-400">(5분)</span></h3>
+                    </div>
+
+                    <!-- Q1 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">1. 삼성전자가 더 벌 것이라고 예상한 이유를 고른다. (복수 선택 가능)</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="AI 서버용 반도체 수요 증가" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>AI 서버용 반도체 수요 증가</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="휴대폰 판매 증가" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>휴대폰 판매 증가</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="부품 공급 확대" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>부품 공급 확대</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q1" value="회사 규모가 커서 이익도 계속 늘 것 같음" class="rounded text-brand-600 focus:ring-brand-500">
+                                <span>회사 규모가 커서 계속 늘 것 같음</span>
+                            </label>
+                        </div>
+                        <div class="pt-2">
+                            <input type="text" id="q1-etc" placeholder="기타 이유 입력..." class="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                        </div>
+                    </div>
+
+                    <!-- Q2 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">2. 이번 분기 이익에 더 크게 기여했을 것으로 예상한 사업 하나를 고른다.</label>
+                        <div class="flex flex-wrap gap-4 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="반도체 DS" class="text-brand-600 focus:ring-brand-500">
+                                <span>반도체 DS</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="모바일 MX" class="text-brand-600 focus:ring-brand-500">
+                                <span>모바일 MX</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="비슷할 것" class="text-brand-600 focus:ring-brand-500">
+                                <span>비슷할 것</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q2" value="모르겠음" class="text-brand-600 focus:ring-brand-500">
+                                <span>모르겠음</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q3 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">3. 예상한 이유 한 문장</label>
+                        <input type="text" id="q3" placeholder="예: AI 시장 확대로 HBM 등 고성능 반도체 판매가 대폭 늘었을 것으로 보이기 때문" class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                    </div>
+                </div>
+
+                <!-- SECTION B -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">B</span>
+                        <h3 class="font-bold text-slate-900 text-base">원문에서 확인 <span class="text-xs font-normal text-slate-400">(15분)</span></h3>
+                    </div>
+
+                    <!-- Q4 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">4. DS의 이번 분기 영업이익은 약 몇 조 원인가?</label>
+                        <div class="flex items-center gap-3">
+                            <span class="text-sm">약</span>
+                            <input type="text" id="q4" placeholder="숫자 입력" class="w-32 text-sm p-2 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                            <span class="text-sm">조 원</span>
+                            <label class="flex items-center gap-1.5 text-xs text-slate-500 ml-auto cursor-pointer">
+                                <input type="checkbox" id="q4-check" class="rounded"> 확인 전
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q5 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">5. MX 및 네트워크 사업의 이번 분기 영업손익은 다음 중 무엇인가?</label>
+                        <div class="flex flex-wrap gap-4 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q5" value="이익" class="text-brand-600 focus:ring-brand-500"> <span>이익</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q5" value="손실" class="text-brand-600 focus:ring-brand-500"> <span>손실</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q5" value="확인 전" class="text-brand-600 focus:ring-brand-500"> <span>확인 전</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q6 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">6. 회사가 메모리 실적이 좋아진 이유로 든 것을 모두 고른다.</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="AI 관련 서버 제품 수요" class="rounded text-brand-600 focus:ring-brand-500"> <span>AI 관련 서버 제품 수요</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="메모리 가격 상승" class="rounded text-brand-600 focus:ring-brand-500"> <span>메모리 가격 상승</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="휴대폰 부품 원가 하락" class="rounded text-brand-600 focus:ring-brand-500"> <span>휴대폰 부품 원가 하락</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" name="q6" value="확인 전" class="rounded text-brand-600 focus:ring-brand-500"> <span>확인 전</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q7 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">7. 회사가 모바일 이익이 압박받은 이유로 든 것 하나를 고른다.</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="부품 원가 상승" class="text-brand-600 focus:ring-brand-500"> <span>부품 원가 상승</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="AI 수요 감소" class="text-brand-600 focus:ring-brand-500"> <span>AI 수요 감소</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="고객사 이름 변경" class="text-brand-600 focus:ring-brand-500"> <span>고객사 이름 변경</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="q7" value="확인 전" class="text-brand-600 focus:ring-brand-500"> <span>확인 전</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q8 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">8. 가장 놀라웠던 확인된 사실 한 문장</label>
+                        <input type="text" id="q8" placeholder="예: 메모리는 고부가가치 제품 및 가격 상승으로 큰 폭 성장을 했으나, 모바일은 부품가 상승으로 이익률에 영향을 받았음" class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                        <div class="flex items-center gap-4 text-xs text-slate-600 pt-1 flex-wrap">
+                            <span>찾은 위치:</span>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q8-pos" value="DS 첫 문단"> DS 첫 문단</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q8-pos" value="DS 둘째 문단"> DS 둘째 문단</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q8-pos" value="MX 첫 문단"> MX 첫 문단</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION C -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">C</span>
+                        <h3 class="font-bold text-slate-900 text-base">해석하기 <span class="text-xs font-normal text-slate-400">(15분)</span></h3>
+                    </div>
+
+                    <!-- Q9 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">9. “AI 사용 증가 → 삼성전자가 돈을 더 번다” 사이에 자료가 보여 준 중간 과정을 고른다.</label>
+                        <div class="space-y-2 text-sm pt-1">
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="radio" name="q9" value="AI 서버 수요 → 메모리 판매 및 가격 변화 → 메모리 사업 실적" class="text-brand-600">
+                                <span>AI 서버 수요 → 메모리 판매 및 가격 변화 → 메모리 사업 실적</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="radio" name="q9" value="AI 서버 수요 → 모든 휴대폰의 이익 자동 증가" class="text-brand-600">
+                                <span>AI 서버 수요 → 모든 휴대폰의 이익 자동 증가</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                                <input type="radio" name="q9" value="현재 자료만으로 아무 연결도 확인 불가" class="text-brand-600">
+                                <span>현재 자료만으로 아무 연결도 확인 불가</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Q10 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">10. 휴대폰이 계속 팔려도 모바일 이익이 줄 수 있는 이유 한 문장</label>
+                        <input type="text" id="q10" placeholder="예: 핵심 부품 가격 원가가 상승하면 매출이 유지되어도 영업이익률이 감소하기 때문" class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500">
+                    </div>
+
+                    <!-- Q11 & Q12 & Q13 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                        <label class="block text-sm font-semibold text-slate-800">11~13. 실적 지속성 검토 및 반대 가능성</label>
+                        
+                        <div class="text-xs font-medium text-slate-600">11. 이번 실적만으로 다음 분기에도 같은 이익이 이어진다고 확신할 수 있나?</div>
+                        <div class="flex gap-4 text-xs">
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q11" value="그렇다"> 그렇다</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q11" value="아니다"> 아니다</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q11" value="확인 전"> 확인 전</label>
+                        </div>
+
+                        <div class="text-xs font-medium text-slate-600 pt-2">12. 반대 가능성을 하나 고른다.</div>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q12" value="메모리 가격 하락"> 메모리 가격 하락</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q12" value="경쟁사의 공급 확대"> 경쟁사의 공급 확대</label>
+                            <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="q12" value="AI 투자 지연"> AI 투자 지연</label>
+                            <div class="flex items-center gap-1">
+                                <span class="text-slate-500">기타:</span>
+                                <input type="text" id="q12-etc" class="text-xs p-1 rounded border border-slate-200 w-full">
+                            </div>
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="block text-xs font-medium text-slate-600 mb-1">13. 이를 확인할 정보나 다음 자료 이름</label>
+                            <input type="text" id="q13" placeholder="예: 3분기 메모리 수급 전망 보고서 및 DRAM 가격 동향 리포트" class="w-full text-xs p-2 rounded border border-slate-200">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION D -->
+                <div class="space-y-4">
+                    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-500 text-white flex items-center justify-center font-bold text-xs">D</span>
+                        <h3 class="font-bold text-slate-900 text-base">내 판단 기록 <span class="text-xs font-normal text-slate-400">(10분)</span></h3>
+                    </div>
+
+                    <!-- Q14 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">14. 오늘 본 자료가 내 기존 삼성전자 보유 이유에 미친 영향</label>
+                        <div class="flex flex-wrap gap-4 text-sm pt-1">
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="강화"> <span>강화</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="일부 약화"> <span>일부 약화</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="변화 없음"> <span>변화 없음</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q14" value="아직 판단 보류"> <span>아직 판단 보류</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Q15 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+                        <label class="block text-sm font-semibold text-slate-800">15. 이유를 확인된 사실 하나에 연결하여 한 문장으로 적는다.</label>
+                        <textarea id="q15" rows="2" placeholder="예: AI 서버 수요로 인한 반도체 이익 개선은 확실하지만 모바일 부품 원가 부담이 존재하는 것을 확인했으므로 판단을 보류한다." class="w-full text-sm p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:border-brand-500"></textarea>
+                    </div>
+
+                    <!-- Q16 & Q17 -->
+                    <div class="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                        <label class="block text-sm font-semibold text-slate-800">16. 오늘 결론</label>
+                        <div class="space-y-1.5 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q16" value="보유 이유를 유지하고 다음 실적 확인"> <span>보유 이유를 유지하고 다음 실적 확인</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q16" value="보유 이유를 다시 검토"> <span>보유 이유를 다시 검토</span></label>
+                            <label class="flex items-center gap-2 cursor-pointer"><input type="radio" name="q16" value="판단 보류"> <span>판단 보류</span></label>
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="block text-xs font-semibold text-slate-800 mb-1">17. 다음에 확인할 질문 하나</label>
+                            <input type="text" id="q17" placeholder="예: 다음 분기 모바일 MX 사업부의 원가율 개선 여부" class="w-full text-xs p-2.5 rounded-lg border border-slate-200">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checklist Completion -->
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2 text-xs">
+                    <div class="font-bold text-emerald-800 text-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check text-emerald-600"></i> 학습 완료 체크리스트
+                    </div>
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-900">
+                        <input type="checkbox" id="check-1" onchange="autoSaveChecklist()" class="rounded text-emerald-600">
+                        <span>선택 문항 1~17에서 확인 가능한 칸을 채웠다.</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-900">
+                        <input type="checkbox" id="check-2" onchange="autoSaveChecklist()" class="rounded text-emerald-600">
+                        <span>'사실'과 '내 예상'을 구분했다.</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-emerald-900">
+                        <input type="checkbox" id="check-3" onchange="autoSaveChecklist()" class="rounded text-emerald-600">
+                        <span>이 문서를 저장했다. 다음 실적이 발표되면 11~17번을 다시 읽는다.</span>
+                    </label>
+                </div>
+
+                <!-- Footer Action Buttons -->
+                <div class="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+                    <button onclick="copySubmissionAnswers()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition flex items-center gap-1.5 shadow">
+                        <i class="fa-regular fa-copy"></i> 답안 요약복사
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="saveCurrentWorksheetProgress()" class="px-5 py-2 text-xs font-bold rounded-xl bg-brand-600 text-white hover:bg-brand-500 transition shadow">
+                            <i class="fa-solid fa-floppy-disk mr-1"></i> 현재 풀이 저장하기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Worksheet content generated from uploaded Markdown -->
+            <div id="study-subview-dynamic" class="hidden bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4"></div>
+
+            <!-- Markdown Viewer Tab in Study Mode -->
+            <div id="study-subview-md" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4 hidden">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-800 text-sm">작성 결과 마크다운(.md) 문서</h3>
+                    <button onclick="downloadMarkdownFile()" class="px-3.5 py-1.5 text-xs bg-slate-900 text-white rounded-xl hover:bg-slate-800 font-medium flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-arrow-down"></i> .md 파일 다운로드
+                    </button>
+                </div>
+                <textarea id="markdown-viewer" class="w-full h-96 p-4 bg-slate-900 text-slate-200 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none" readonly></textarea>
+            </div>
+
+        </section>
+
+
+        <!-- ==================================================================== -->
+        <!-- VIEW 3: UPLOAD & FILE MANAGEMENT (학습지 업로드 및 파일 관리) -->
+        <!-- ==================================================================== -->
+        <section id="view-upload" class="hidden space-y-6">
+            
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-file-arrow-up text-brand-500"></i>
+                        학습지 파일(.md) 업로드 공간
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        학습지 마크다운 파일을 올리면 GitHub 저장소에 저장되고 학습지 목록에 추가됩니다.
+                    </p>
+                </div>
+
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-5 text-sm">
+                    <strong>GitHub 저장소에 업로드</strong>
+                    <p class="mt-1 text-xs">이 저장소에 Contents 읽기/쓰기 권한을 가진 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer" class="underline">Fine-grained 토큰</a>을 입력하세요. 업로드하면 '학습지 넣는 파일' 폴더에 저장됩니다. 토큰은 저장되지 않으며 새로고침 후 다시 입력해야 합니다.</p>
+                    <input id="github-token" type="password" autocomplete="off" spellcheck="false" aria-label="GitHub 토큰" placeholder="GitHub 토큰" class="mt-3 w-full rounded-lg border p-2 text-sm">
+                    <p id="upload-status" role="status" aria-live="polite" class="mt-2 text-xs">저장소 학습지를 불러오는 중...</p>
+                </div>
+
+                <!-- Drag and Drop Zone -->
+                <div id="drop-zone" class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-2xl p-8 text-center bg-slate-50 transition cursor-pointer flex flex-col items-center justify-center space-y-3">
+                    <div class="w-14 h-14 rounded-full bg-brand-50 text-brand-600 flex items-center justify-center text-2xl shadow-sm">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold text-slate-800">
+                            마크다운(.md) 파일을 여기에 드래그하거나 클릭하여 선택하세요
+                        </p>
+                        <p class="text-xs text-slate-400 mt-1">지원 형식: .md (업로드 시 GitHub 저장소에 저장)</p>
+                    </div>
+                    <input type="file" id="md-file-input" accept=".md" class="hidden" onchange="handleFileSelect(event)">
+                    <button onclick="document.getElementById('md-file-input').click()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-brand-600 text-white hover:bg-brand-500 transition shadow">
+                        파일 찾기
+                    </button>
+                </div>
+
+                <!-- Direct Text Paste Option -->
+                <div class="border-t border-slate-100 pt-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-code"></i> 마크다운 직접 붙여넣기 등록
+                        </label>
+                    </div>
+                    <textarea id="paste-md-input" rows="5" placeholder="# 2일차 SK하이닉스 실적 학습지&#10;날짜 2026년 9월 18일 | 예상 시간 40분..." class="w-full text-xs p-3 font-mono rounded-xl border border-slate-200 focus:outline-none focus:border-brand-500 bg-slate-50"></textarea>
+                    <button onclick="addWorksheetFromPastedText()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition">
+                        붙여넣은 글로 학습지 생성
+                    </button>
+                </div>
+            </div>
+
+            <!-- Uploaded Worksheets List / Management -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-folder-tree text-brand-500"></i>
+                        현재 등록된 학습지 파일 관리
+                    </h3>
+                    <button onclick="resetToSampleData()" class="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                        <i class="fa-solid fa-rotate"></i> GitHub 목록 새로고침
+                    </button>
+                </div>
+
+                <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden" id="uploaded-file-list">
+                    <!-- Dynamic File Items -->
+                </div>
+            </div>
+
+        </section>
+
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl text-xs shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-50 flex items-center gap-2 border border-slate-700">
+        <i class="fa-solid fa-circle-check text-emerald-400 text-base" id="toast-icon"></i>
+        <span id="toast-msg">메시지 내용</span>
+    </div>
+
+    <script>
+        // Sample Initial Worksheet (1일차 삼성전자)
+        const sampleWorksheets = [
+            {
+                id: "ws-samsung-1",
+                day: "1일차",
+                company: "삼성전자",
+                title: "삼성전자 실적과 내 투자 생각 점검",
+                date: "2026-09-17",
+                time: "45분",
+                goal: "같은 회사 안에서도 휴대폰과 반도체의 이익 흐름이 다른지 확인한다",
+                filename: "2026-09-17_투자공부_1일차_삼성전자_실적학습지.md",
+                completed: false,
+                rawMd: `# 1일차 삼성전자 실적과 내 투자 생각 점검\n날짜 2026년 9월 17일 | 예상 시간 45분 | 목표 1개 같은 회사 안에서도 휴대폰과 반도체의 이익 흐름이 다른지 확인한다`
+            }
+        ];
+
+        // State variables
+        let worksheets = JSON.parse(localStorage.getItem('stock_archive_worksheets')) || [];
+        let activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+        let currentFilter = 'all';
+
+        // Initialize application on load
+        window.onload = function() {
+            initDropZone();
+            renderMainGrid();
+            renderUploadedFileList();
+            updateStats();
+            loadRepositoryWorksheets();
+            
+            if(activeWorksheetId) {
+                loadWorksheetFormData(activeWorksheetId);
+            }
+        };
+
+        // Navigation Controller
+        function navigateTo(viewName) {
+            const views = ['main', 'study', 'upload'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                const btn = document.getElementById(`nav-btn-${v}`);
+                const mobBtn = document.getElementById(`mob-nav-${v}`);
+
+                if (v === viewName) {
+                    el.classList.remove('hidden');
+                    if (btn) btn.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 bg-brand-600 text-white shadow";
+                    if (mobBtn) mobBtn.className = "flex-1 py-1.5 text-center text-brand-400 font-semibold flex flex-col items-center gap-1";
+                } else {
+                    el.classList.add('hidden');
+                    if (btn) btn.className = "px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-700/60 rounded-lg transition flex items-center gap-1.5";
+                    if (mobBtn) mobBtn.className = "flex-1 py-1.5 text-center text-slate-400 flex flex-col items-center gap-1";
+                }
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
-      }
-    },
-    mastery_updates: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["topic", "score", "evidence"],
-        properties: {
-          topic: { type: "string" },
-          score: { type: "integer", minimum: 0, maximum: 100 },
-          evidence: { type: "string" }
+
+        // Markdown metadata is text, never trusted HTML.
+        function escapeHtml(value) {
+            const node = document.createElement('span');
+            node.textContent = String(value);
+            return node.innerHTML;
         }
-      }
-    },
-    next_focus: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } }
-  }
-};
 
-export default {
-  async fetch(request, env) {
-    const cors = corsHeaders(request, env);
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    try {
-      const url = new URL(request.url);
-      if (url.pathname === "/api/health") return json({ ok: true }, 200, cors);
-      authorize(request, env);
+        // Render Main Page Grid
+        function renderMainGrid() {
+            const gridEl = document.getElementById('worksheet-grid');
+            gridEl.innerHTML = '';
 
-      if (url.pathname === "/api/today" && request.method === "GET") {
-        return json(await getOrCreateToday(env), 200, cors);
-      }
-      if (url.pathname === "/api/generate" && request.method === "POST") {
-        return json(await getOrCreateToday(env, true), 200, cors);
-      }
-      if (url.pathname === "/api/profile" && request.method === "GET") {
-        return json(await getProfile(env), 200, cors);
-      }
-      if (url.pathname === "/api/submit" && request.method === "POST") {
-        return json(await submitAnswers(await request.json(), env), 200, cors);
-      }
-      if (url.pathname === "/api/files" && request.method === "POST") {
-        return json(await uploadGithubFile(await request.json(), env), 200, cors);
-      }
-      if (url.pathname.startsWith("/api/files/") && request.method === "DELETE") {
-        return json(await deleteGithubFile(decodeURIComponent(url.pathname.slice(11)), env), 200, cors);
-      }
-      return json({ error: "Not found" }, 404, cors);
-    } catch (error) {
-      console.error(error);
-      return json({ error: publicError(error) }, error.status || 500, cors);
-    }
-  },
+            const searchTerm = (document.getElementById('search-input')?.value || '').toLowerCase();
 
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(getOrCreateToday(env));
-  }
-};
+            const filtered = worksheets.filter(ws => {
+                const matchSearch = ws.title.toLowerCase().includes(searchTerm) || (ws.company || '').toLowerCase().includes(searchTerm);
+                if (currentFilter === 'completed') return matchSearch && ws.completed;
+                if (currentFilter === 'in-progress') return matchSearch && !ws.completed;
+                return matchSearch;
+            });
 
-function corsHeaders(request, env) {
-  const origin = request.headers.get("Origin") || "";
-  const allowed = (env.ALLOWED_ORIGIN || "https://ddattj.github.io").replace(/\/$/, "");
-  const accepted = origin === allowed || origin === `${allowed}/` ? origin : allowed;
-  return {
-    "Access-Control-Allow-Origin": accepted,
-    "Access-Control-Allow-Headers": "Content-Type, X-Archive-Key",
-    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    "Vary": "Origin"
-  };
-}
+            if (filtered.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="col-span-full py-12 text-center bg-white rounded-2xl border border-slate-200">
+                        <i class="fa-regular fa-folder-open text-4xl text-slate-300 mb-2"></i>
+                        <p class="text-sm font-semibold text-slate-600">등록되거나 조건에 맞는 학습지가 없습니다.</p>
+                        <button onclick="navigateTo('upload')" class="mt-3 px-4 py-2 text-xs bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-500 transition">
+                            <i class="fa-solid fa-upload mr-1"></i> 학습지 파일 업로드하기
+                        </button>
+                    </div>
+                `;
+                return;
+            }
 
-function authorize(request, env) {
-  if (!env.ARCHIVE_ACCESS_KEY) throw statusError(500, "ARCHIVE_ACCESS_KEY가 설정되지 않았습니다.");
-  if (request.headers.get("X-Archive-Key") !== env.ARCHIVE_ACCESS_KEY) {
-    throw statusError(401, "개인용 접근키가 올바르지 않습니다.");
-  }
-}
+            filtered.forEach(ws => {
+                const card = document.createElement('div');
+                card.className = "bg-white border border-slate-200 hover:border-brand-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition cursor-pointer flex flex-col justify-between space-y-4 group relative";
+                
+                card.onclick = () => openWorksheetForStudy(ws.id);
 
-function json(value, status, cors) {
-  return new Response(JSON.stringify(value), {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8", ...cors }
-  });
-}
+                card.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${ws.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-brand-50 text-brand-600 border border-brand-100'}">
+                                ${escapeHtml(ws.day || '학습지')}
+                            </span>
+                            <span class="text-xs text-slate-400 font-mono">${escapeHtml(ws.date || '')}</span>
+                        </div>
+                        <h4 class="font-bold text-slate-900 text-base group-hover:text-brand-600 transition line-clamp-2">
+                            ${escapeHtml(ws.title)}
+                        </h4>
+                        <p class="text-xs text-slate-500 line-clamp-2">
+                            ${escapeHtml(ws.goal ? '목표: ' + ws.goal : '주식 실적 및 원문 분석 학습지')}
+                        </p>
+                    </div>
 
-function statusError(status, message) {
-  const error = new Error(message);
-  error.status = status;
-  return error;
-}
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-400 flex items-center gap-1">
+                            <i class="fa-regular fa-clock"></i> ${escapeHtml(ws.time || '30~45분')}
+                        </span>
+                        <span class="font-semibold ${ws.completed ? 'text-emerald-600' : 'text-brand-600'} flex items-center gap-1">
+                            ${ws.completed ? '<i class="fa-solid fa-circle-check"></i> 학습 완료' : '공부 시작하기 <i class="fa-solid fa-chevron-right text-[10px]"></i>'}
+                        </span>
+                    </div>
+                `;
+                gridEl.appendChild(card);
+            });
+        }
 
-function publicError(error) {
-  // 설정 중에는 인증된 요청에 실제 오류를 보여 진단하기 쉽게 한다.
-  if (error.status) return error.message;
-  return "서버 처리 중 오류가 발생했습니다.";
-}
+        function filterWorksheets() {
+            renderMainGrid();
+        }
 
-function koreaDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit"
-  }).format(new Date());
-}
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            ['all', 'in-progress', 'completed'].forEach(f => {
+                const btn = document.getElementById(`filter-${f}`);
+                if(f === filterType) {
+                    btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white shadow-sm flex-shrink-0";
+                } else {
+                    btn.className = "px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex-shrink-0";
+                }
+            });
+            renderMainGrid();
+        }
 
-async function getProfile(env) {
-  const row = await env.DB.prepare("SELECT curriculum_json, mastery_json, updated_at FROM learner_profile WHERE id = 1").first();
-  return {
-    curriculum: JSON.parse(row?.curriculum_json || "{}"),
-    mastery: JSON.parse(row?.mastery_json || "{}"),
-    updated_at: row?.updated_at || null
-  };
-}
+        // Open Worksheet and fill into study view
+        function openWorksheetForStudy(wsId) {
+            activeWorksheetId = wsId;
+            const target = worksheets.find(w => w.id === wsId);
+            if (!target) return;
 
-async function getOrCreateToday(env, force = false) {
-  const date = koreaDate();
-  const existing = await env.DB.prepare("SELECT * FROM worksheets WHERE study_date = ?").bind(date).first();
-  if (existing && !force) return worksheetRow(existing);
-  if (!env.NVIDIA_API_KEY) throw statusError(500, "NVIDIA_API_KEY가 설정되지 않았습니다.");
-  const profile = await getProfile(env);
-  const previous = await env.DB.prepare(
-    "SELECT feedback_json FROM submissions ORDER BY created_at DESC LIMIT 3"
-  ).all();
-  const lesson = await nvidiaJson(env, "daily_stock_worksheet", WORKSHEET_SCHEMA, [
-    {
-      role: "developer",
-      content: "당신은 한국어 주식 기초 학습 코치다. 개인의 이해도에 맞춘 20~40분 분량의 대화형 학습지를 만든다. 사실과 추론을 분명히 구분하고, 특정 종목 매수·매도 추천이나 수익 보장을 하지 않는다. 최신 수치나 뉴스는 제공된 근거가 없으면 만들어내지 않는다. 객관식과 짧은 서술형을 섞고 각 문항 id는 q1, q2처럼 고유하게 지정한다."
-    },
-    {
-      role: "user",
-      content: JSON.stringify({ date, profile, recent_feedback: previous.results.map(row => JSON.parse(row.feedback_json)) })
-    }
-  ]);
-  const id = existing?.id || crypto.randomUUID();
-  const markdown = lessonToMarkdown(lesson, date);
-  await env.DB.prepare(
-    `INSERT INTO worksheets (id, study_date, title, goal, time_minutes, content_json, markdown, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'ready')
-     ON CONFLICT(study_date) DO UPDATE SET title=excluded.title, goal=excluded.goal,
-       time_minutes=excluded.time_minutes, content_json=excluded.content_json, markdown=excluded.markdown, status='ready'`
-  ).bind(id, date, lesson.title, lesson.goal, lesson.time_minutes, JSON.stringify(lesson), markdown).run();
-  return { id, study_date: date, title: lesson.title, goal: lesson.goal, time_minutes: lesson.time_minutes, content: lesson, markdown, status: "ready" };
-}
+            // Populate Study Header
+            document.getElementById('ws-badge').innerText = target.day || '학습지';
+            document.getElementById('ws-date').innerText = target.date || '날짜 미지정';
+            document.getElementById('ws-time').innerText = target.time || '45분';
+            document.getElementById('ws-title').innerText = target.title;
+            document.getElementById('ws-goal').innerText = target.goal || '실적 원문 분석 및 투자 아이디어 검증';
 
-function worksheetRow(row) {
-  return {
-    id: row.id,
-    study_date: row.study_date,
-    title: row.title,
-    goal: row.goal,
-    time_minutes: row.time_minutes,
-    content: JSON.parse(row.content_json),
-    markdown: row.markdown,
-    status: row.status
-  };
-}
+            const isSample = target.id === 'ws-samsung-1';
+            if (isSample) loadWorksheetFormData(wsId);
+            else renderDynamicWorksheet(target);
+            document.getElementById('study-tab-form').style.display = '';
+            document.getElementById('study-tab-md').textContent = '마크다운 미리보기';
+            navigateTo('study');
+            switchStudySubTab('form');
+            showToast(`'${target.title}' 학습지를 불러왔습니다.`);
+        }
 
-function lessonToMarkdown(lesson, date) {
-  const lines = [
-    `# ${lesson.day} ${lesson.title}`,
-    `날짜: ${date} | 예상 소요: ${lesson.time_minutes}분`,
-    `목표: ${lesson.goal}`,
-    "",
-    "## 학습지"
-  ];
-  let number = 1;
-  for (const section of lesson.sections) {
-    lines.push("", `### ${section.title}`);
-    for (const question of section.questions) {
-      lines.push("", `**${number++}.** ${question.prompt}`);
-      if (question.type === "short") lines.push(question.placeholder || "____________________");
-      else for (const option of question.options) lines.push(`- [ ] ${option}`);
-    }
-  }
-  return lines.join("\n");
-}
+        // Public reads, authenticated writes. The token remains in the input only.
+        const REPO_API = 'https://api.github.com/repos/DDattj/EEEEEconomy-/contents/';
+        const FOLDER = '학습지 넣는 파일';
+        let uploadBusy = false;
+        let deleteBusy = false;
 
-async function submitAnswers(body, env) {
-  if (!body?.worksheetId || !body?.completedMarkdown) throw statusError(400, "학습지와 답안이 필요합니다.");
-  const row = await env.DB.prepare("SELECT * FROM worksheets WHERE id = ?").bind(body.worksheetId).first();
-  if (!row) throw statusError(404, "학습지를 찾지 못했습니다.");
-  const profile = await getProfile(env);
-  const feedback = await nvidiaJson(env, "worksheet_feedback", FEEDBACK_SCHEMA, [
-    {
-      role: "developer",
-      content: "당신은 한국어 주식 학습 코치다. 정답만 말하지 말고 사용자의 사고과정에서 잘한 점, 사실과 추론을 혼동한 부분, 보완할 다음 질문을 구체적으로 설명한다. 투자 자문이나 매수·매도 지시는 하지 않는다. 답이 비어 있으면 추측하지 말고 미응답이라고 지적한다."
-    },
-    {
-      role: "user",
-      content: JSON.stringify({ worksheet: JSON.parse(row.content_json), completed_markdown: body.completedMarkdown, raw_answers: body.answers || {}, learner_profile: profile })
-    }
-  ]);
-  const submissionId = crypto.randomUUID();
-  await env.DB.prepare(
-    "INSERT INTO submissions (id, worksheet_id, answers_json, feedback_json) VALUES (?, ?, ?, ?)"
-  ).bind(submissionId, row.id, JSON.stringify(body.answers || {}), JSON.stringify(feedback)).run();
-  await env.DB.prepare("UPDATE worksheets SET status = 'completed' WHERE id = ?").bind(row.id).run();
+        function fileApiUrl(name) {
+            return REPO_API + encodeURIComponent(FOLDER) + '/' + encodeURIComponent(name);
+        }
+        function uploadStatus(message, error = false) {
+            const node = document.getElementById('upload-status');
+            node.textContent = message;
+            node.className = 'mt-2 text-xs ' + (error ? 'text-red-700' : 'text-slate-600');
+        }
+        async function githubRequest(url, options = {}) {
+            const response = await fetch(url, {
+                ...options,
+                headers: { Accept: 'application/vnd.github+json', ...(options.headers || {}) }
+            });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                const error = new Error(payload.message || 'GitHub 요청 실패');
+                error.status = response.status;
+                throw error;
+            }
+            return response.json();
+        }
+        function toBase64(text) {
+            const bytes = new TextEncoder().encode(text);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i += 8192) {
+                binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+            }
+            return btoa(binary);
+        }
+        function fromBase64(encoded) {
+            const binary = atob(encoded.replace(/\s/g, ''));
+            return new TextDecoder().decode(Uint8Array.from(binary, ch => ch.charCodeAt(0)));
+        }
+        async function loadRepositoryWorksheets() {
+            try {
+                const entries = await githubRequest(REPO_API + encodeURIComponent(FOLDER) + '?ref=main')
+                    .catch(error => { if (error.status === 404) return []; throw error; });
+                const files = entries.filter(entry => entry.type === 'file' && /\.md$/i.test(entry.name));
+                const remoteNames = new Set(files.map(entry => entry.name));
+                worksheets = worksheets.filter(ws => remoteNames.has(ws.filename));
+                for (const entry of files) {
+                    const existing = worksheets.find(ws => ws.filename === entry.name);
+                    if (existing && existing.rawMd && existing.rawMd.length > 300) continue;
+                    try {
+                        const file = await githubRequest(fileApiUrl(entry.name) + '?ref=main');
+                        const text = fromBase64(file.content);
+                        if (existing) existing.rawMd = text;
+                        else {
+                            const worksheet = parseMarkdownToWorksheet(text, entry.name);
+                            worksheet.id = entry.name === sampleWorksheets[0].filename ? 'ws-samsung-1' : 'repo-' + entry.sha;
+                            worksheets.unshift(worksheet);
+                        }
+                    } catch (error) {
+                        console.warn('학습지 읽기 실패:', entry.name, error);
+                    }
+                }
+                saveWorksheetsToStorage();
+                if (!worksheets.some(ws => ws.id === activeWorksheetId)) {
+                    activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+                }
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                uploadStatus('GitHub 학습지 ' + files.length + '개 확인');
+            } catch (error) {
+                uploadStatus('GitHub 학습지를 읽지 못했습니다. 새로고침해 주세요.', true);
+                console.warn(error);
+            }
+        }
+        function initDropZone() {
+            const zone = document.getElementById('drop-zone');
+            ['dragenter', 'dragover'].forEach(type => zone.addEventListener(type, e => {
+                e.preventDefault(); e.stopPropagation(); zone.classList.add('drop-zone--over');
+            }));
+            ['dragleave', 'drop'].forEach(type => zone.addEventListener(type, e => {
+                e.preventDefault(); e.stopPropagation(); zone.classList.remove('drop-zone--over');
+            }));
+            zone.addEventListener('drop', e => {
+                if (e.dataTransfer.files[0]) processUploadedFile(e.dataTransfer.files[0]);
+            });
+        }
+        function handleFileSelect(e) {
+            if (e.target.files[0]) processUploadedFile(e.target.files[0]);
+            e.target.value = '';
+        }
+        async function saveToGithub(text, filename) {
+            const token = document.getElementById('github-token').value.trim();
+            if (!token) throw new Error('먼저 GitHub 토큰을 입력하세요.');
+            const url = fileApiUrl(filename);
+            const headers = { Authorization: 'Bearer ' + token };
+            try {
+                await githubRequest(url + '?ref=main', { headers });
+                throw new Error('같은 이름의 학습지가 이미 있습니다. 파일명을 바꿔주세요.');
+            } catch (error) {
+                if (error.status !== 404) throw error;
+            }
+            try {
+                return await githubRequest(url, {
+                    method: 'PUT',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '학습지 추가: ' + filename,
+                        content: toBase64(text),
+                        branch: 'main'
+                    })
+                });
+            } catch (error) {
+                if (error.status === 401 || error.status === 403) throw new Error('토큰과 Contents 쓰기 권한을 확인하세요.');
+                if (error.status === 422) throw new Error('같은 파일이 있거나 파일 이름이 유효하지 않습니다.');
+                throw error;
+            }
+        }
+        async function addWorksheetToGithub(text, filename) {
+            if (uploadBusy) return;
+            if (!/\.md$/i.test(filename) || filename.includes('/') || filename.includes('\\')) {
+                uploadStatus('.md 학습지 파일만 사용할 수 있습니다.', true);
+                return;
+            }
+            if (!text.trim() || new TextEncoder().encode(text).length > 1024 * 1024) {
+                uploadStatus('내용이 있는 1MB 이하 파일만 올릴 수 있습니다.', true);
+                return;
+            }
+            uploadBusy = true;
+            uploadStatus('GitHub에 저장 중...');
+            try {
+                const result = await saveToGithub(text, filename);
+                const worksheet = parseMarkdownToWorksheet(text, filename);
+                worksheet.id = 'repo-' + result.content.sha;
+                worksheets = worksheets.filter(ws => ws.filename !== filename);
+                worksheets.unshift(worksheet);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                uploadStatus('GitHub 저장 완료: ' + FOLDER + '/' + filename);
+                showToast('GitHub에 저장하고 목록에 추가했습니다.');
+            } catch (error) {
+                uploadStatus('업로드 실패: ' + error.message, true);
+                showToast('업로드 실패: ' + error.message, true);
+            } finally {
+                uploadBusy = false;
+            }
+        }
+        async function processUploadedFile(file) {
+            if (!/\.md$/i.test(file.name)) {
+                uploadStatus('.md 파일을 선택하세요.', true);
+                return;
+            }
+            await addWorksheetToGithub(await file.text(), file.name);
+        }
+        async function addWorksheetFromPastedText() {
+            const input = document.getElementById('paste-md-input');
+            const text = input.value.trim();
+            if (!text) { showToast('마크다운 글을 입력해주세요.', true); return; }
+            const filename = '학습지_' + new Date().toISOString().replace(/[:.]/g, '-') + '.md';
+            await addWorksheetToGithub(text, filename);
+            if (!document.getElementById('upload-status').classList.contains('text-red-700')) input.value = '';
+        }
 
-  const history = Array.isArray(profile.mastery.history) ? profile.mastery.history.slice(-19) : [];
-  history.push({ date: koreaDate(), worksheet_id: row.id, updates: feedback.mastery_updates, next_focus: feedback.next_focus });
-  const mastery = { ...profile.mastery, latest: feedback.mastery_updates, needs_work: feedback.next_focus, history };
-  await env.DB.prepare(
-    "UPDATE learner_profile SET mastery_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1"
-  ).bind(JSON.stringify(mastery)).run();
-  return { submissionId, feedback, mastery };
-}
+        // Parse Markdown text to extract header metadata
+        function parseMarkdownToWorksheet(mdText, filename) {
+            const lines = mdText.split('\n');
+            let title = lines[0] ? lines[0].replace(/^#+\s*/, '').trim() : "새 주식 학습지";
+            let date = new Date().toISOString().split('T')[0];
+            let time = "45분";
+            let goal = "실적 원문과 내 판단 기록하기";
 
-async function nvidiaJson(env, name, schema, input) {
-  const endpoint = "https://integrate.api.nvidia.com/v1/chat/completions";
-  const messages = input.map(message => ({
-    role: message.role === "developer" ? "system" : message.role,
-    content: message.content
-  }));
-  messages[0].content += `\n반드시 설명이나 마크다운 코드블록 없이 다음 JSON 스키마를 만족하는 JSON 객체만 출력한다:\n${JSON.stringify(schema)}`;
+            // Extract Date / Time / Goal line
+            const metaLine = lines.find(l => l.includes('날짜') || l.includes('목표'));
+            if(metaLine) {
+                const dateMatch = metaLine.match(/날짜\s*:?\s*([0-9년월일.\/\-\s]+)/);
+                if(dateMatch) date = dateMatch[1].trim();
 
-  const body = {
-    model: env.NVIDIA_MODEL || "openai/gpt-oss-120b",
-    messages,
-    temperature: 1,
-    top_p: 1,
-    max_tokens: 4096,
-    stream: false,
-    response_format: {
-      type: "json_schema",
-      json_schema: { name, strict: true, schema }
-    }
-  };
+                const timeMatch = metaLine.match(/예상\s*(?:시간|소요)\s*:?\s*(\d+\s*분)/);
+                if(timeMatch) time = timeMatch[1].trim();
 
-  let response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${env.NVIDIA_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
+                const goalMatch = metaLine.match(/목표\s*[\d개]*\s*(.+)/);
+                if(goalMatch) goal = goalMatch[1].trim();
+            }
 
-  // 일부 NVIDIA 호스팅 모델은 json_schema 옵션을 받지 않는다.
-  // 그 경우 프롬프트에 포함한 스키마를 사용해 일반 JSON 응답으로 한 번 재시도한다.
-  if (response.status === 400 || response.status === 422) {
-    const firstError = await response.text();
-    console.warn("NVIDIA structured output retry", firstError);
-    const { response_format, ...fallbackBody } = body;
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.NVIDIA_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(fallbackBody)
-    });
-  }
+            return {
+                id: "ws-" + Date.now(),
+                day: ((title + ' ' + filename).match(/(\d+)일차/) || [])[0] || `${worksheets.length + 1}일차`,
+                company: title.includes('삼성') ? '삼성전자' : title.includes('SK') ? 'SK하이닉스' : '종목 분석',
+                title: title,
+                date: date,
+                time: time,
+                goal: goal,
+                filename: filename,
+                completed: false,
+                rawMd: mdText
+            };
+        }
 
-  const raw = await response.text();
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    console.error("NVIDIA non-JSON response", raw);
-    throw statusError(502, "NVIDIA AI 응답을 읽지 못했습니다.");
-  }
-  if (!response.ok) {
-    console.error("NVIDIA error", data);
-    throw statusError(502, data?.detail || data?.error?.message || "NVIDIA AI 응답을 생성하지 못했습니다.");
-  }
+        // Render File Management List in Upload View
+        function renderUploadedFileList() {
+            const container = document.getElementById('uploaded-file-list');
+            container.replaceChildren();
+            worksheets.forEach(ws => {
+                const item = document.createElement('div');
+                item.className = 'p-4 bg-white flex items-center justify-between hover:bg-slate-50 transition flex-wrap gap-2';
+                const details = document.createElement('div');
+                details.className = 'flex items-center gap-3';
+                const icon = document.createElement('span');
+                icon.className = 'w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center';
+                icon.textContent = '▤';
+                const labels = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'font-bold text-slate-800 text-xs sm:text-sm';
+                title.textContent = ws.title;
+                const filename = document.createElement('div');
+                filename.className = 'text-[11px] text-slate-400 font-mono';
+                filename.textContent = (ws.filename || 'markdown.md') + ' • ' + (ws.date || '');
+                labels.append(title, filename);
+                details.append(icon, labels);
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-2';
+                const study = document.createElement('button');
+                study.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800';
+                study.textContent = '공부하기';
+                study.addEventListener('click', () => openWorksheetForStudy(ws.id));
+                const remove = document.createElement('button');
+                remove.className = 'p-1.5 text-xs text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50';
+                remove.title = 'GitHub 파일 삭제';
+                remove.setAttribute('aria-label', ws.title + ' GitHub에서 삭제');
+                const trash = document.createElement('i');
+                trash.className = 'fa-solid fa-trash-can';
+                remove.appendChild(trash);
+                remove.addEventListener('click', () => deleteWorksheet(ws.id));
+                actions.append(study, remove);
+                item.append(details, actions);
+                container.appendChild(item);
+            });
+        }
 
-  const content = data?.choices?.[0]?.message?.content;
-  const text = typeof content === "string"
-    ? content
-    : Array.isArray(content)
-      ? content.map(item => item?.text || "").join("")
-      : "";
-  if (!text) throw statusError(502, "NVIDIA AI가 빈 응답을 반환했습니다.");
-  return parseJsonObject(text);
-}
+        // GitHub requires the current blob SHA for a file deletion commit.
+        async function deleteWorksheet(id) {
+            if (deleteBusy || uploadBusy) return;
+            const ws = worksheets.find(item => item.id === id);
+            if (!ws || !ws.filename) return;
+            const token = document.getElementById('github-token').value.trim();
+            if (!token) {
+                uploadStatus('삭제하려면 GitHub 토큰을 입력하세요.', true);
+                showToast('GitHub 토큰을 입력한 뒤 다시 삭제하세요.', true);
+                return;
+            }
+            if (!confirm('GitHub 저장소의 학습지 넣는 파일/' + ws.filename + ' 파일을 삭제하시겠습니까?')) return;
+            deleteBusy = true;
+            uploadStatus('GitHub 파일 삭제 중: ' + ws.filename);
+            try {
+                const url = fileApiUrl(ws.filename);
+                const headers = { Authorization: 'Bearer ' + token };
+                const current = await githubRequest(url + '?ref=main', { headers });
+                await githubRequest(url, {
+                    method: 'DELETE',
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '학습지 삭제: ' + ws.filename,
+                        sha: current.sha,
+                        branch: 'main'
+                    })
+                });
+                worksheets = worksheets.filter(item => item.id !== id);
+                localStorage.removeItem('ws_save_' + id);
+                localStorage.removeItem(dynamicStorageKey(ws));
+                if (activeWorksheetId === id) activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                uploadStatus('GitHub에서 삭제 완료: ' + ws.filename);
+                showToast('GitHub 파일과 학습지 목록에서 삭제했습니다.');
+            } catch (error) {
+                const message = error.status === 401 || error.status === 403
+                    ? '토큰의 Contents 읽기/쓰기 권한을 확인하세요.'
+                    : error.status === 409 || error.status === 422
+                        ? '파일이 변경됐습니다. 목록을 새로고침하고 다시 시도하세요.'
+                        : error.message;
+                uploadStatus('삭제 실패: ' + message, true);
+                showToast('삭제 실패: ' + message, true);
+            } finally {
+                deleteBusy = false;
+            }
+        }
 
-function parseJsonObject(text) {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start >= 0 && end > start) return JSON.parse(cleaned.slice(start, end + 1));
-    throw statusError(502, "NVIDIA AI가 올바른 JSON을 반환하지 않았습니다.");
-  }
-}
+        async function resetToSampleData() {
+            if (!confirm('GitHub 저장소의 학습지 목록을 다시 불러오시겠습니까?')) return;
+            await loadRepositoryWorksheets();
+        }
 
-function githubConfig(env) {
-  if (!env.GITHUB_TOKEN) throw statusError(500, "GITHUB_TOKEN이 Worker에 설정되지 않았습니다.");
-  return {
-    repo: env.GITHUB_REPO || "DDattj/EEEEEconomy-",
-    branch: env.GITHUB_BRANCH || "main",
-    folder: env.GITHUB_FOLDER || "학습지 넣는 파일"
-  };
-}
+        // Save Progress logic
+        function saveCurrentWorksheetProgress() {
+            if(!activeWorksheetId) return;
+            if (activeWorksheetId !== 'ws-samsung-1') {
+                persistDynamicProgress(true);
+                return;
+            }
 
-function githubHeaders(env) {
-  return {
-    "Authorization": `Bearer ${env.GITHUB_TOKEN}`,
-    "Accept": "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "EEEEEconomy-Worker",
-    "Content-Type": "application/json"
-  };
-}
+            const formData = getFormData();
+            localStorage.setItem(`ws_save_${activeWorksheetId}`, JSON.stringify(formData));
 
-// GitHub normally returns JSON, but gateways and access rules can return
-// plain text (for example, "Request forbidden...").  Preserve that message
-// instead of throwing an unhelpful JSON parse error.
-async function readGithubResponse(response) {
-  const text = await response.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { message: text.trim().slice(0, 500) || `GitHub HTTP ${response.status}` };
-  }
-}
+            // Check if checklist completed
+            const isDone = document.getElementById('check-1').checked && document.getElementById('check-2').checked;
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId);
+            if(targetWs) {
+                targetWs.completed = isDone;
+                saveWorksheetsToStorage();
+            }
 
-async function uploadGithubFile(body, env) {
-  if (!body?.filename?.endsWith(".md") || !body?.content) throw statusError(400, "유효한 .md 파일이 필요합니다.");
-  if (body.filename.includes("/") || body.filename.includes("\\")) throw statusError(400, "파일명이 유효하지 않습니다.");
-  const cfg = githubConfig(env);
-  const path = `${cfg.folder}/${body.filename}`.split("/").map(encodeURIComponent).join("/");
-  const url = `https://api.github.com/repos/${cfg.repo}/contents/${path}`;
-  const exists = await fetch(`${url}?ref=${encodeURIComponent(cfg.branch)}`, { headers: githubHeaders(env) });
-  if (exists.ok) throw statusError(409, "같은 이름의 파일이 이미 있습니다.");
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: githubHeaders(env),
-    body: JSON.stringify({ message: `학습지 추가: ${body.filename}`, content: utf8Base64(body.content), branch: cfg.branch })
-  });
-  const data = await readGithubResponse(response);
-  if (!response.ok) throw statusError(response.status, data.message || "GitHub 업로드 실패");
-  return { filename: body.filename, sha: data.content.sha, path: data.content.path };
-}
+            renderMainGrid();
+            updateStats();
+            generateMarkdownPreview();
+            showToast("성공적으로 저장되었습니다!");
+        }
 
-async function deleteGithubFile(filename, env) {
-  if (!filename?.endsWith(".md") || filename.includes("/") || filename.includes("\\")) throw statusError(400, "파일명이 유효하지 않습니다.");
-  const cfg = githubConfig(env);
-  const path = `${cfg.folder}/${filename}`.split("/").map(encodeURIComponent).join("/");
-  const url = `https://api.github.com/repos/${cfg.repo}/contents/${path}`;
-  const currentResponse = await fetch(`${url}?ref=${encodeURIComponent(cfg.branch)}`, { headers: githubHeaders(env) });
-  const current = await readGithubResponse(currentResponse);
-  if (!currentResponse.ok) throw statusError(currentResponse.status, current.message || "GitHub 파일을 찾지 못했습니다.");
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: githubHeaders(env),
-    body: JSON.stringify({ message: `학습지 삭제: ${filename}`, sha: current.sha, branch: cfg.branch })
-  });
-  const data = await readGithubResponse(response);
-  if (!response.ok) throw statusError(response.status, data.message || "GitHub 삭제 실패");
-  return { deleted: true, filename };
-}
+        function autoSaveChecklist() {
+            saveCurrentWorksheetProgress();
+        }
 
-function utf8Base64(value) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
+        function loadWorksheetFormData(wsId) {
+            const saved = localStorage.getItem(`ws_save_${wsId}`);
+            if(!saved) {
+                resetFormInputs();
+                return;
+            }
+
+            const data = JSON.parse(saved);
+            
+            // Text Inputs
+            if(data.q1Etc) document.getElementById('q1-etc').value = data.q1Etc;
+            if(data.q3) document.getElementById('q3').value = data.q3;
+            if(data.q4) document.getElementById('q4').value = data.q4;
+            if(data.q4Check) document.getElementById('q4-check').checked = data.q4Check;
+            if(data.q8) document.getElementById('q8').value = data.q8;
+            if(data.q10) document.getElementById('q10').value = data.q10;
+            if(data.q12Etc) document.getElementById('q12-etc').value = data.q12Etc;
+            if(data.q13) document.getElementById('q13').value = data.q13;
+            if(data.q15) document.getElementById('q15').value = data.q15;
+            if(data.q17) document.getElementById('q17').value = data.q17;
+
+            // Checkboxes & Radios
+            setCheckboxValues('q1', data.q1 || []);
+            setCheckboxValues('q6', data.q6 || []);
+            setRadioValue('q2', data.q2);
+            setRadioValue('q5', data.q5);
+            setRadioValue('q7', data.q7);
+            setRadioValue('q8-pos', data.q8Pos);
+            setRadioValue('q9', data.q9);
+            setRadioValue('q11', data.q11);
+            setRadioValue('q12', data.q12);
+            setRadioValue('q14', data.q14);
+            setRadioValue('q16', data.q16);
+
+            document.getElementById('check-1').checked = !!data.check1;
+            document.getElementById('check-2').checked = !!data.check2;
+            document.getElementById('check-3').checked = !!data.check3;
+        }
+
+        function resetFormInputs() {
+            const inputs = document.querySelectorAll('#study-subview-form input[type="text"], #study-subview-form textarea');
+            inputs.forEach(i => i.value = '');
+            const checkboxes = document.querySelectorAll('#study-subview-form input[type="checkbox"], #study-subview-form input[type="radio"]');
+            checkboxes.forEach(c => c.checked = false);
+        }
+
+        function getFormData() {
+            return {
+                q1: getCheckboxValues('q1'),
+                q1Etc: document.getElementById('q1-etc').value,
+                q2: getRadioValue('q2'),
+                q3: document.getElementById('q3').value,
+                q4: document.getElementById('q4').value,
+                q4Check: document.getElementById('q4-check').checked,
+                q5: getRadioValue('q5'),
+                q6: getCheckboxValues('q6'),
+                q7: getRadioValue('q7'),
+                q8: document.getElementById('q8').value,
+                q8Pos: getRadioValue('q8-pos'),
+                q9: getRadioValue('q9'),
+                q10: document.getElementById('q10').value,
+                q11: getRadioValue('q11'),
+                q12: getRadioValue('q12'),
+                q12Etc: document.getElementById('q12-etc').value,
+                q13: document.getElementById('q13').value,
+                q14: getRadioValue('q14'),
+                q15: document.getElementById('q15').value,
+                q16: getRadioValue('q16'),
+                q17: document.getElementById('q17').value,
+                check1: document.getElementById('check-1').checked,
+                check2: document.getElementById('check-2').checked,
+                check3: document.getElementById('check-3').checked,
+            };
+        }
+
+        // Helper getters/setters for Form
+        function getCheckboxValues(name) {
+            return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(cb => cb.value);
+        }
+        function setCheckboxValues(name, values) {
+            document.querySelectorAll(`input[name="${name}"]`).forEach(cb => {
+                cb.checked = values.includes(cb.value);
+            });
+        }
+        function getRadioValue(name) {
+            const checked = document.querySelector(`input[name="${name}"]:checked`);
+            return checked ? checked.value : '';
+        }
+        function setRadioValue(name, value) {
+            if(!value) return;
+            const radio = document.querySelector(`input[name="${name}"][value="${value}"]`);
+            if(radio) radio.checked = true;
+        }
+
+        // Build an interactive worksheet from Markdown without inserting file contents as HTML.
+        function dynamicStorageKey(ws) {
+            return 'ws_dynamic_' + (ws.filename || ws.id);
+        }
+
+        function readDynamicAnswers(ws) {
+            try { return JSON.parse(localStorage.getItem(dynamicStorageKey(ws))) || {}; }
+            catch (_) { return {}; }
+        }
+
+        function appendMarkdownInline(parent, source) {
+            const pattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*]+)\*\*/g;
+            let from = 0, match;
+            while ((match = pattern.exec(source))) {
+                if (match.index > from) parent.appendChild(document.createTextNode(source.slice(from, match.index)));
+                if (match[1]) {
+                    const link = document.createElement('a');
+                    link.href = match[2];
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'text-brand-600 underline';
+                    link.textContent = match[1];
+                    parent.appendChild(link);
+                } else {
+                    const strong = document.createElement('strong');
+                    strong.textContent = match[3];
+                    parent.appendChild(strong);
+                }
+                from = pattern.lastIndex;
+            }
+            parent.appendChild(document.createTextNode(source.slice(from)));
+        }
+
+        function appendAnswerLine(parent, source, lineNo, answers) {
+            const pieces = source.split(/(_{3,})/g);
+            let blankIndex = 0;
+            pieces.forEach(piece => {
+                if (/^_{3,}$/.test(piece)) {
+                    const key = 't-' + lineNo + '-' + blankIndex++;
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.dataset.answerKey = key;
+                    input.value = answers[key] || '';
+                    input.setAttribute('aria-label', '답 입력 ' + lineNo + '-' + blankIndex);
+                    input.className = 'mx-1 my-1 w-48 max-w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm focus:border-brand-500 focus:outline-none';
+                    parent.appendChild(input);
+                } else {
+                    appendMarkdownInline(parent, piece);
+                }
+            });
+        }
+
+        function renderDynamicWorksheet(ws) {
+            const container = document.getElementById('study-subview-dynamic');
+            container.replaceChildren();
+            const answers = readDynamicAnswers(ws);
+            let currentQuestion = -1;
+            let questionText = '';
+            const lines = (ws.rawMd || '').split(/\r?\n/);
+            const hasExerciseSection = lines.some(line => /^#{2,4}\s*(학습지|문항|문제|퀴즈)/.test(line));
+            let inExercises = !hasExerciseSection;
+
+            lines.forEach((line, lineNo) => {
+                if (!line.trim()) return;
+                const heading = line.match(/^(#{1,6})\s+(.+)$/);
+                if (heading) {
+                    currentQuestion = -1;
+                    if (hasExerciseSection && heading[1].length <= 2) {
+                        inExercises = /^(학습지|문항|문제|퀴즈)/.test(heading[2]);
+                    }
+                    const title = document.createElement(heading[1].length === 1 ? 'h1' : 'h2');
+                    title.className = heading[1].length === 1
+                        ? 'text-2xl font-bold text-slate-900 pb-3 border-b border-slate-200'
+                        : 'text-lg font-bold text-slate-900 pt-5 pb-2 border-b border-slate-100';
+                    appendMarkdownInline(title, heading[2]);
+                    container.appendChild(title);
+                    return;
+                }
+                if (/^\s*---+\s*$/.test(line)) {
+                    container.appendChild(document.createElement('hr'));
+                    return;
+                }
+                const question = inExercises && line.match(/^\s*(?:\*\*)?(\d{1,3})\.(?:\*\*)?\s+(.+)$/);
+                if (question) {
+                    currentQuestion = lineNo;
+                    questionText = question[2];
+                }
+                const choice = line.match(/^\s*[-*]\s+\[([ xX])\]\s*(.*)$/);
+                if (choice) {
+                    const label = document.createElement('label');
+                    label.className = 'flex items-start gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer';
+                    const input = document.createElement('input');
+                    input.type = currentQuestion >= 0 && !/복수|모두|여러/.test(questionText) ? 'radio' : 'checkbox';
+                    input.name = 'dynamic-group-' + (currentQuestion >= 0 ? currentQuestion : lineNo);
+                    input.dataset.answerKey = 'c-' + lineNo;
+                    input.checked = !!answers[input.dataset.answerKey];
+                    input.className = 'mt-0.5 accent-blue-600';
+                    const content = document.createElement('span');
+                    appendAnswerLine(content, choice[2], lineNo, answers);
+                    label.append(input, content);
+                    container.appendChild(label);
+                    return;
+                }
+                const paragraph = document.createElement('p');
+                paragraph.className = question
+                    ? 'pt-4 text-sm font-semibold leading-7 text-slate-900'
+                    : 'text-sm leading-7 text-slate-700';
+                let content = line;
+                if (/^\s*[-*]\s+/.test(line)) content = '• ' + line.replace(/^\s*[-*]\s+/, '');
+                appendAnswerLine(paragraph, content, lineNo, answers);
+                container.appendChild(paragraph);
+            });
+
+            const footer = document.createElement('div');
+            footer.className = 'border-t border-slate-100 pt-5 flex flex-wrap items-center justify-between gap-3';
+            const note = document.createElement('span');
+            note.className = 'text-xs text-slate-500';
+            note.textContent = '입력 내용은 이 브라우저에 자동 저장됩니다.';
+            const save = document.createElement('button');
+            save.type = 'button';
+            save.className = 'rounded-xl bg-brand-600 px-5 py-2 text-xs font-bold text-white hover:bg-brand-500';
+            save.textContent = '현재 풀이 저장하기';
+            save.addEventListener('click', () => persistDynamicProgress(true));
+            footer.append(note, save);
+            container.appendChild(footer);
+            container.oninput = () => persistDynamicProgress(false);
+            container.onchange = () => persistDynamicProgress(false);
+        }
+
+        function persistDynamicProgress(notify) {
+            const ws = worksheets.find(item => item.id === activeWorksheetId);
+            if (!ws) return;
+            const controls = Array.from(document.querySelectorAll('#study-subview-dynamic [data-answer-key]'));
+            const answers = {};
+            controls.forEach(control => {
+                answers[control.dataset.answerKey] = control.type === 'text' ? control.value : control.checked;
+            });
+            localStorage.setItem(dynamicStorageKey(ws), JSON.stringify(answers));
+            const textFields = controls.filter(control => control.type === 'text');
+            const radioGroups = new Set(controls.filter(control => control.type === 'radio').map(control => control.name));
+            ws.completed = textFields.length + radioGroups.size > 0
+                && textFields.every(control => control.value.trim())
+                && Array.from(radioGroups).every(name => controls.some(control => control.name === name && control.checked));
+            saveWorksheetsToStorage();
+            if (notify) {
+                renderMainGrid();
+                updateStats();
+                showToast('풀이를 이 브라우저에 저장했습니다.');
+            }
+        }
+
+        function dynamicMarkdownWithAnswers(ws) {
+            const answers = readDynamicAnswers(ws);
+            return (ws.rawMd || '').split(/\r?\n/).map((line, lineNo) => {
+                let blankIndex = 0;
+                let result = line.replace(/_{3,}/g, original => {
+                    const answer = answers['t-' + lineNo + '-' + blankIndex++];
+                    return answer ? String(answer).replace(/[\r\n]+/g, ' ') : original;
+                });
+                if (answers['c-' + lineNo]) result = result.replace(/^(\s*[-*]\s+)\[ \]/, '$1[x]');
+                return result;
+            }).join('\n');
+        }
+
+        // Switch Sub tabs in Study Mode
+        function switchStudySubTab(subTab) {
+            const formView = document.getElementById('study-subview-form');
+            const dynamicView = document.getElementById('study-subview-dynamic');
+            const mdView = document.getElementById('study-subview-md');
+            const btnForm = document.getElementById('study-tab-form');
+            const btnMd = document.getElementById('study-tab-md');
+
+            if(subTab === 'form') {
+                formView.classList.toggle('hidden', activeWorksheetId !== 'ws-samsung-1');
+                dynamicView.classList.toggle('hidden', activeWorksheetId === 'ws-samsung-1');
+                mdView.classList.add('hidden');
+                btnForm.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow";
+                btnMd.className = "px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg";
+            } else {
+                formView.classList.add('hidden');
+                dynamicView.classList.add('hidden');
+                mdView.classList.remove('hidden');
+                btnForm.className = "px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg";
+                btnMd.className = "px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-brand-600 text-white shadow";
+                generateMarkdownPreview();
+            }
+        }
+
+        // Copy Answers to Clipboard
+        function copySubmissionAnswers() {
+            const data = getFormData();
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId);
+            const title = targetWs ? targetWs.title : "학습지";
+
+            const text = `[${title} - 답안 요약 제출]
+- 4번 (영업이익): 약 ${data.q4 || '___'}조 원
+- 5번 (영업손익): ${data.q5 || '미선택'}
+- 6번 (실적 요인): ${data.q6.join(', ') || '미선택'}
+- 7번 (이익 압박 요인): ${data.q7 || '미선택'}
+- 14번 (보유 이유 영향): ${data.q14 || '미선택'}
+- 15번 (확인된 사실 연결): ${data.q15 || '(미작성)'}
+- 16번 (오늘 결론): ${data.q16 || '미선택'}
+- 17번 (다음 질문): ${data.q17 || '(미작성)'}`;
+
+            const dummy = document.createElement("textarea");
+            document.body.appendChild(dummy);
+            dummy.value = text;
+            dummy.select();
+            document.execCommand("copy");
+            document.body.removeChild(dummy);
+
+            showToast("답안 요약이 클립보드에 복사되었습니다!");
+        }
+
+        // Generate MD Document
+        function generateMarkdownPreview() {
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId) || {};
+            document.querySelector('#study-subview-md h3').textContent = '작성 결과 마크다운(.md) 문서';
+            if (targetWs.id !== 'ws-samsung-1') {
+                document.getElementById('markdown-viewer').value = dynamicMarkdownWithAnswers(targetWs);
+                return;
+            }
+            const data = getFormData();
+
+            const mdText = `# ${targetWs.title || '주식 실적 학습지'}
+
+날짜: ${targetWs.date || ''} | 작성 상태: ${data.check1 ? '완료' : '진행 중'}
+
+## A. 읽기 전 내 생각
+1. 예상 이유: ${data.q1.join(', ')} ${data.q1Etc ? `(기타: ${data.q1Etc})` : ''}
+2. 기여 사업: ${data.q2 || '미선택'}
+3. 예상한 이유: ${data.q3 || ''}
+
+## B. 원문에서 확인
+4. 영업이익: 약 ${data.q4 || '___'}조 원
+5. 영업손익: ${data.q5 || '미선택'}
+6. 실적 상승 요인: ${data.q6.join(', ')}
+7. 이익 압박 요인: ${data.q7 || '미선택'}
+8. 확인된 사실: ${data.q8 || ''} (위치: ${data.q8Pos || ''})
+
+## C. 해석하기
+9. 중간 과정: ${data.q9 || ''}
+10. 이익 감소 이유: ${data.q10 || ''}
+11. 지속성 확신: ${data.q11 || ''}
+12. 반대 가능성: ${data.q12 || ''} ${data.q12Etc || ''}
+13. 다음 확인 자료: ${data.q13 || ''}
+
+## D. 내 판단 기록
+14. 보유 이유 영향: ${data.q14 || ''}
+15. 연결 문장: ${data.q15 || ''}
+16. 오늘 결론: ${data.q16 || ''}
+17. 다음에 확인할 질문: ${data.q17 || ''}
+`;
+            document.getElementById('markdown-viewer').value = mdText;
+        }
+
+        function downloadMarkdownFile() {
+            generateMarkdownPreview();
+            const targetWs = worksheets.find(w => w.id === activeWorksheetId);
+            const fileName = targetWs && targetWs.id !== 'ws-samsung-1' ? targetWs.filename : (targetWs ? `${targetWs.date}_${targetWs.title}_작성완료.md` : "학습지_결과.md");
+            
+            const text = document.getElementById('markdown-viewer').value;
+            const blob = new Blob([text], { type: "text/markdown;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("마크다운 파일 다운로드 완료!");
+        }
+
+        function saveWorksheetsToStorage() {
+            localStorage.setItem('stock_archive_worksheets', JSON.stringify(worksheets));
+        }
+
+        function updateStats() {
+            const total = worksheets.length;
+            const completed = worksheets.filter(w => w.completed).length;
+            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-main-total-badge').innerText = `${total}개`;
+            document.getElementById('stat-completed').innerText = completed;
+            document.getElementById('stat-progress-percent').innerText = `${percent}%`;
+            document.getElementById('stat-progress-bar').style.width = `${percent}%`;
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toast-icon');
+            document.getElementById('toast-msg').innerText = message;
+
+            if (isError) {
+                icon.className = "fa-solid fa-triangle-exclamation text-amber-400 text-base";
+            } else {
+                icon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+            }
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
