@@ -696,6 +696,98 @@
             return node.innerHTML;
         }
 
+<<<<<<< HEAD
+=======
+        function aiBackendConfigured() {
+            return AI_API_BASE && !AI_API_BASE.includes('YOUR-WORKER');
+        }
+
+        function getArchiveAccessKey() {
+            let key = localStorage.getItem(AI_ACCESS_STORAGE_KEY) || '';
+            if (!key) {
+                key = prompt('개인 학습 백엔드 접근키를 입력하세요. 이 브라우저에만 저장됩니다.') || '';
+                if (key) localStorage.setItem(AI_ACCESS_STORAGE_KEY, key);
+            }
+            return key;
+        }
+
+        async function aiApi(path, options = {}) {
+            if (!aiBackendConfigured()) throw new Error('index.html의 AI_API_BASE에 Worker 주소를 먼저 입력하세요.');
+            const key = getArchiveAccessKey();
+            if (!key) throw new Error('개인용 접근키가 필요합니다.');
+            const response = await fetch(AI_API_BASE.replace(/\/$/, '') + path, {
+                ...options,
+                headers: { 'Content-Type': 'application/json', 'X-Archive-Key': key, ...(options.headers || {}) }
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 401) localStorage.removeItem(AI_ACCESS_STORAGE_KEY);
+                throw new Error(payload.error || 'AI 백엔드 요청에 실패했습니다.');
+            }
+            return payload;
+        }
+
+        function aiWorksheetToLocal(item) {
+            return {
+                id: 'ai-' + item.id,
+                remoteId: item.id,
+                day: item.content?.day || '오늘',
+                company: 'AI 맞춤 학습',
+                title: item.title,
+                date: item.study_date,
+                time: (item.time_minutes || 30) + '분',
+                goal: item.goal,
+                filename: `AI_${item.study_date}_${item.id}.md`,
+                completed: item.status === 'completed',
+                rawMd: item.markdown,
+                aiGenerated: true
+            };
+        }
+
+        async function loadTodayWorksheetFromAI() {
+            const status = document.getElementById('ai-daily-status');
+            if (!aiBackendConfigured()) return;
+            status.textContent = '오늘의 맞춤 학습지를 확인하는 중...';
+            try {
+                const item = await aiApi('/api/today');
+                const worksheet = aiWorksheetToLocal(item);
+                worksheets = worksheets.filter(ws => ws.id !== worksheet.id && ws.remoteId !== worksheet.remoteId);
+                worksheets.unshift(worksheet);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                status.textContent = `오늘 학습지 준비 완료: ${item.title}`;
+            } catch (error) {
+                status.textContent = error.message;
+            }
+        }
+
+        async function generateTodayWorksheet() {
+            const button = document.getElementById('ai-generate-button');
+            const status = document.getElementById('ai-daily-status');
+            button.disabled = true;
+            status.textContent = '이해도 기록을 반영해 학습지를 만드는 중...';
+            try {
+                const item = await aiApi('/api/generate', { method: 'POST', body: '{}' });
+                const worksheet = aiWorksheetToLocal(item);
+                worksheets = worksheets.filter(ws => ws.remoteId !== worksheet.remoteId && !(ws.aiGenerated && ws.date === worksheet.date));
+                worksheets.unshift(worksheet);
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                renderUploadedFileList();
+                updateStats();
+                status.textContent = `새 학습지 준비 완료: ${item.title}`;
+                openWorksheetForStudy(worksheet.id);
+            } catch (error) {
+                status.textContent = error.message;
+                showToast(error.message, true);
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+>>>>>>> parent of 1a38254 (오류사항 수정)
         // Render Main Page Grid
         function renderMainGrid() {
             const gridEl = document.getElementById('worksheet-grid');
@@ -1054,6 +1146,7 @@
             deleteBusy = true;
             uploadStatus('GitHub 파일 삭제 중: ' + ws.filename);
             try {
+<<<<<<< HEAD
                 const url = fileApiUrl(ws.filename);
                 const headers = { Authorization: 'Bearer ' + token };
                 const current = await githubRequest(url + '?ref=main', { headers });
@@ -1066,6 +1159,9 @@
                         branch: 'main'
                     })
                 });
+=======
+                await aiApi('/api/files/' + encodeURIComponent(ws.filename), { method: 'DELETE' });
+>>>>>>> parent of 1a38254 (오류사항 수정)
                 worksheets = worksheets.filter(item => item.id !== id);
                 localStorage.removeItem('ws_save_' + id);
                 localStorage.removeItem(dynamicStorageKey(ws));
