@@ -7,6 +7,10 @@
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+        
+        const AI_API_BASE = 'https://eeeeeconomy-ai-api.imddattj.workers.dev';
+        const AI_ACCESS_STORAGE_KEY = 'stock_archive_access_key';
+
         tailwind.config = {
             theme: {
                 extend: {
@@ -148,6 +152,18 @@
                 </div>
             </div>
 
+            <!-- AI Daily Coach -->
+            <div class="bg-gradient-to-r from-brand-600 to-brand-700 rounded-2xl p-5 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <div class="text-xs font-semibold text-brand-100 mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> AI 개인 학습 코치</div>
+                    <h3 class="text-lg font-bold">내 이해도에 맞춘 오늘의 학습지</h3>
+                    <p id="ai-daily-status" class="text-xs text-brand-100 mt-1">오늘 학습지 받기 버튼을 누르면 AI 학습지가 생성됩니다.</p>
+                </div>
+                <button id="ai-generate-button" onclick="generateTodayWorksheet()" class="shrink-0 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-brand-700 shadow hover:bg-brand-50 disabled:opacity-60">
+                    <i class="fa-solid fa-sparkles mr-1"></i> 오늘 학습지 받기
+                </button>
+            </div>
+
             <!-- Filter & Search Bar -->
             <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div class="relative w-full sm:w-80">
@@ -209,6 +225,9 @@
                     </button>
                     <button onclick="saveCurrentWorksheetProgress()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition flex items-center gap-1">
                         <i class="fa-solid fa-floppy-disk"></i> 저장
+                    </button>
+                    <button id="ai-submit-button" onclick="submitCurrentWorksheetToAI()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition flex items-center gap-1">
+                        <i class="fa-solid fa-paper-plane"></i> 제출·AI 해설
                     </button>
                 </div>
             </div>
@@ -547,6 +566,17 @@
                 <textarea id="markdown-viewer" class="w-full h-96 p-4 bg-slate-900 text-slate-200 font-mono text-xs rounded-xl border border-slate-800 focus:outline-none" readonly></textarea>
             </div>
 
+            <div id="ai-feedback-panel" class="hidden bg-white rounded-2xl border border-emerald-200 shadow-sm p-6 space-y-4">
+                <div class="flex items-center gap-2">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-graduation-cap"></i></div>
+                    <div>
+                        <h3 class="font-bold text-slate-900">AI 학습 해설</h3>
+                        <p class="text-xs text-slate-500">이 결과는 다음 학습지의 난이도와 주제에 반영됩니다.</p>
+                    </div>
+                </div>
+                <div id="ai-feedback-content" class="space-y-4 text-sm text-slate-700"></div>
+            </div>
+
         </section>
 
 
@@ -566,10 +596,9 @@
                     </p>
                 </div>
 
-                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 mb-5 text-sm">
-                    <strong>GitHub 저장소에 업로드</strong>
-                    <p class="mt-1 text-xs">이 저장소에 Contents 읽기/쓰기 권한을 가진 <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer" class="underline">Fine-grained 토큰</a>을 입력하세요. 업로드하면 '학습지 넣는 파일' 폴더에 저장됩니다. 토큰은 저장되지 않으며 새로고침 후 다시 입력해야 합니다.</p>
-                    <input id="github-token" type="password" autocomplete="off" spellcheck="false" aria-label="GitHub 토큰" placeholder="GitHub 토큰" class="mt-3 w-full rounded-lg border p-2 text-sm">
+                <div class="rounded-xl border border-brand-100 bg-brand-50 p-4 mb-5 text-sm">
+                    <strong>GitHub 저장소 자동 연동</strong>
+                    <p class="mt-1 text-xs text-slate-600">파일을 선택하면 보안 백엔드를 통해 '학습지 넣는 파일' 폴더에 저장됩니다.</p>
                     <p id="upload-status" role="status" aria-live="polite" class="mt-2 text-xs">저장소 학습지를 불러오는 중...</p>
                 </div>
 
@@ -696,8 +725,6 @@
             return node.innerHTML;
         }
 
-<<<<<<< HEAD
-=======
         function aiBackendConfigured() {
             return AI_API_BASE && !AI_API_BASE.includes('YOUR-WORKER');
         }
@@ -722,7 +749,9 @@
             const payload = await response.json().catch(() => ({}));
             if (!response.ok) {
                 if (response.status === 401) localStorage.removeItem(AI_ACCESS_STORAGE_KEY);
-                throw new Error(payload.error || 'AI 백엔드 요청에 실패했습니다.');
+                const error = new Error(payload.error || 'AI 백엔드 요청에 실패했습니다.');
+                error.status = response.status;
+                throw error;
             }
             return payload;
         }
@@ -744,28 +773,10 @@
             };
         }
 
-        async function loadTodayWorksheetFromAI() {
-            const status = document.getElementById('ai-daily-status');
-            if (!aiBackendConfigured()) return;
-            status.textContent = '오늘의 맞춤 학습지를 확인하는 중...';
-            try {
-                const item = await aiApi('/api/today');
-                const worksheet = aiWorksheetToLocal(item);
-                worksheets = worksheets.filter(ws => ws.id !== worksheet.id && ws.remoteId !== worksheet.remoteId);
-                worksheets.unshift(worksheet);
-                saveWorksheetsToStorage();
-                renderMainGrid();
-                renderUploadedFileList();
-                updateStats();
-                status.textContent = `오늘 학습지 준비 완료: ${item.title}`;
-            } catch (error) {
-                status.textContent = error.message;
-            }
-        }
-
         async function generateTodayWorksheet() {
             const button = document.getElementById('ai-generate-button');
             const status = document.getElementById('ai-daily-status');
+            if (button.disabled || deleteBusy) return;
             button.disabled = true;
             status.textContent = '이해도 기록을 반영해 학습지를 만드는 중...';
             try {
@@ -787,7 +798,22 @@
             }
         }
 
->>>>>>> parent of 1a38254 (오류사항 수정)
+        function worksheetDateValue(ws) {
+            const source = `${ws.filename || ''} ${ws.date || ''}`;
+            const match = source.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+            return match ? Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : 0;
+        }
+
+        function worksheetNotebookLabel(ws) {
+            const ordered = [...worksheets].sort((a, b) => {
+                const dateDifference = worksheetDateValue(a) - worksheetDateValue(b);
+                if (dateDifference) return dateDifference;
+                return String(a.filename || a.id).localeCompare(String(b.filename || b.id), 'ko');
+            });
+            const index = ordered.findIndex(item => item.id === ws.id);
+            return `📝${index >= 0 ? index + 1 : 1}`;
+        }
+
         // Render Main Page Grid
         function renderMainGrid() {
             const gridEl = document.getElementById('worksheet-grid');
@@ -825,7 +851,7 @@
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
                             <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold ${ws.completed ? 'bg-emerald-100 text-emerald-800' : 'bg-brand-50 text-brand-600 border border-brand-100'}">
-                                ${escapeHtml(ws.day || '학습지')}
+                                ${escapeHtml(worksheetNotebookLabel(ws))}
                             </span>
                             <span class="text-xs text-slate-400 font-mono">${escapeHtml(ws.date || '')}</span>
                         </div>
@@ -874,7 +900,7 @@
             if (!target) return;
 
             // Populate Study Header
-            document.getElementById('ws-badge').innerText = target.day || '학습지';
+            document.getElementById('ws-badge').innerText = worksheetNotebookLabel(target);
             document.getElementById('ws-date').innerText = target.date || '날짜 미지정';
             document.getElementById('ws-time').innerText = target.time || '45분';
             document.getElementById('ws-title').innerText = target.title;
@@ -883,6 +909,8 @@
             const isSample = target.id === 'ws-samsung-1';
             if (isSample) loadWorksheetFormData(wsId);
             else renderDynamicWorksheet(target);
+            document.getElementById('ai-submit-button').classList.toggle('hidden', !target.aiGenerated);
+            document.getElementById('ai-feedback-panel').classList.add('hidden');
             document.getElementById('study-tab-form').style.display = '';
             document.getElementById('study-tab-md').textContent = '마크다운 미리보기';
             navigateTo('study');
@@ -935,7 +963,7 @@
                     .catch(error => { if (error.status === 404) return []; throw error; });
                 const files = entries.filter(entry => entry.type === 'file' && /\.md$/i.test(entry.name));
                 const remoteNames = new Set(files.map(entry => entry.name));
-                worksheets = worksheets.filter(ws => remoteNames.has(ws.filename));
+                worksheets = worksheets.filter(ws => ws.aiGenerated || remoteNames.has(ws.filename));
                 for (const entry of files) {
                     const existing = worksheets.find(ws => ws.filename === entry.name);
                     if (existing && existing.rawMd && existing.rawMd.length > 300) continue;
@@ -982,31 +1010,10 @@
             e.target.value = '';
         }
         async function saveToGithub(text, filename) {
-            const token = document.getElementById('github-token').value.trim();
-            if (!token) throw new Error('먼저 GitHub 토큰을 입력하세요.');
-            const url = fileApiUrl(filename);
-            const headers = { Authorization: 'Bearer ' + token };
-            try {
-                await githubRequest(url + '?ref=main', { headers });
-                throw new Error('같은 이름의 학습지가 이미 있습니다. 파일명을 바꿔주세요.');
-            } catch (error) {
-                if (error.status !== 404) throw error;
-            }
-            try {
-                return await githubRequest(url, {
-                    method: 'PUT',
-                    headers: { ...headers, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: '학습지 추가: ' + filename,
-                        content: toBase64(text),
-                        branch: 'main'
-                    })
-                });
-            } catch (error) {
-                if (error.status === 401 || error.status === 403) throw new Error('토큰과 Contents 쓰기 권한을 확인하세요.');
-                if (error.status === 422) throw new Error('같은 파일이 있거나 파일 이름이 유효하지 않습니다.');
-                throw error;
-            }
+            return aiApi('/api/files', {
+                method: 'POST',
+                body: JSON.stringify({ filename, content: text })
+            });
         }
         async function addWorksheetToGithub(text, filename) {
             if (uploadBusy) return;
@@ -1023,7 +1030,7 @@
             try {
                 const result = await saveToGithub(text, filename);
                 const worksheet = parseMarkdownToWorksheet(text, filename);
-                worksheet.id = 'repo-' + result.content.sha;
+                worksheet.id = 'repo-' + result.sha;
                 worksheets = worksheets.filter(ws => ws.filename !== filename);
                 worksheets.unshift(worksheet);
                 saveWorksheetsToStorage();
@@ -1119,62 +1126,68 @@
                 study.addEventListener('click', () => openWorksheetForStudy(ws.id));
                 const remove = document.createElement('button');
                 remove.className = 'p-1.5 text-xs text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50';
-                remove.title = 'GitHub 파일 삭제';
-                remove.setAttribute('aria-label', ws.title + ' GitHub에서 삭제');
+                remove.title = ws.aiGenerated ? 'AI 학습지 삭제' : 'GitHub 파일 삭제';
+                remove.setAttribute('aria-label', ws.title + (ws.aiGenerated ? ' 서버와 브라우저에서 삭제' : ' GitHub에서 삭제'));
                 const trash = document.createElement('i');
                 trash.className = 'fa-solid fa-trash-can';
                 remove.appendChild(trash);
                 remove.addEventListener('click', () => deleteWorksheet(ws.id));
-                actions.append(study, remove);
+                actions.appendChild(study);
+                actions.appendChild(remove);
                 item.append(details, actions);
                 container.appendChild(item);
             });
         }
 
-        // GitHub requires the current blob SHA for a file deletion commit.
+        // The Worker deletes AI worksheets from D1 and repository files from GitHub.
         async function deleteWorksheet(id) {
-            if (deleteBusy || uploadBusy) return;
+            if (deleteBusy || uploadBusy || document.getElementById('ai-generate-button').disabled) return;
             const ws = worksheets.find(item => item.id === id);
             if (!ws || !ws.filename) return;
-            const token = document.getElementById('github-token').value.trim();
-            if (!token) {
-                uploadStatus('삭제하려면 GitHub 토큰을 입력하세요.', true);
-                showToast('GitHub 토큰을 입력한 뒤 다시 삭제하세요.', true);
-                return;
-            }
-            if (!confirm('GitHub 저장소의 학습지 넣는 파일/' + ws.filename + ' 파일을 삭제하시겠습니까?')) return;
+            const confirmation = ws.aiGenerated
+                ? 'AI 학습지와 연결된 답안·피드백을 서버와 이 브라우저에서 삭제하시겠습니까? 누적 이해도 기록은 유지됩니다.'
+                : 'GitHub 저장소의 학습지 넣는 파일/' + ws.filename + ' 파일을 삭제하시겠습니까?';
+            if (!confirm(confirmation)) return;
             deleteBusy = true;
-            uploadStatus('GitHub 파일 삭제 중: ' + ws.filename);
+            uploadStatus((ws.aiGenerated ? 'AI 학습지 삭제 중: ' : 'GitHub 파일 삭제 중: ') + ws.filename);
             try {
-<<<<<<< HEAD
-                const url = fileApiUrl(ws.filename);
-                const headers = { Authorization: 'Bearer ' + token };
-                const current = await githubRequest(url + '?ref=main', { headers });
-                await githubRequest(url, {
-                    method: 'DELETE',
-                    headers: { ...headers, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: '학습지 삭제: ' + ws.filename,
-                        sha: current.sha,
-                        branch: 'main'
-                    })
-                });
-=======
-                await aiApi('/api/files/' + encodeURIComponent(ws.filename), { method: 'DELETE' });
->>>>>>> parent of 1a38254 (오류사항 수정)
+                if (ws.aiGenerated) {
+                    const remoteId = ws.remoteId || (ws.id.startsWith('ai-') ? ws.id.slice(3) : '');
+                    if (!remoteId) throw new Error('AI 학습지 ID를 확인하지 못했습니다.');
+                    const result = await aiApi('/api/worksheets/' + encodeURIComponent(remoteId), { method: 'DELETE' });
+                    if (!result?.deleted) throw new Error('AI 학습지 삭제 결과를 확인하지 못했습니다.');
+                } else {
+                    const result = await aiApi('/api/files/' + encodeURIComponent(ws.filename), { method: 'DELETE' });
+                    if (!result?.deleted) throw new Error('GitHub 파일 삭제 결과를 확인하지 못했습니다.');
+                    try {
+                        await githubRequest(fileApiUrl(ws.filename) + '?ref=main');
+                        throw new Error('GitHub에 파일이 아직 남아 있습니다. 잠시 후 다시 시도하세요.');
+                    } catch (verificationError) {
+                        if (verificationError.status !== 404) throw verificationError;
+                    }
+                }
                 worksheets = worksheets.filter(item => item.id !== id);
                 localStorage.removeItem('ws_save_' + id);
                 localStorage.removeItem(dynamicStorageKey(ws));
-                if (activeWorksheetId === id) activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+                if (activeWorksheetId === id) {
+                    activeWorksheetId = worksheets[0] ? worksheets[0].id : null;
+                    document.getElementById('study-subview-dynamic').replaceChildren();
+                    document.getElementById('markdown-viewer').value = '';
+                    document.getElementById('ai-feedback-panel').classList.add('hidden');
+                    navigateTo('upload');
+                }
                 saveWorksheetsToStorage();
                 renderMainGrid();
                 renderUploadedFileList();
                 updateStats();
-                uploadStatus('GitHub에서 삭제 완료: ' + ws.filename);
-                showToast('GitHub 파일과 학습지 목록에서 삭제했습니다.');
+                if (ws.aiGenerated) {
+                    document.getElementById('ai-daily-status').textContent = '오늘 학습지 받기 버튼을 누르면 AI 학습지가 생성됩니다.';
+                }
+                uploadStatus((ws.aiGenerated ? '서버와 브라우저에서 삭제 완료: ' : 'GitHub에서 삭제 완료: ') + ws.filename);
+                showToast(ws.aiGenerated ? '서버와 브라우저에서 AI 학습지와 연결된 답안·피드백을 삭제했습니다.' : 'GitHub 파일과 학습지 목록에서 삭제했습니다.');
             } catch (error) {
                 const message = error.status === 401 || error.status === 403
-                    ? '토큰의 Contents 읽기/쓰기 권한을 확인하세요.'
+                    ? (ws.aiGenerated ? '개인용 접근키를 확인하세요.' : '접근키와 GitHub 토큰의 Contents 읽기/쓰기 권한을 확인하세요.')
                     : error.status === 409 || error.status === 422
                         ? '파일이 변경됐습니다. 목록을 새로고침하고 다시 시도하세요.'
                         : error.message;
@@ -1365,6 +1378,18 @@
             });
         }
 
+        function questionNeedsTextarea(lines, lineNo) {
+            for (let index = lineNo + 1; index < lines.length; index++) {
+                const next = lines[index];
+                if (!next.trim()) continue;
+                if (/^(#{1,6})\s+/.test(next) || /^\s*(?:\*\*)?\d{1,3}\.(?:\*\*)?\s+/.test(next)) return true;
+                if (/^\s*[-*]\s+\[[ xX]\]\s*/.test(next)) return false;
+                if (/_{3,}/.test(next)) return false;
+                return true;
+            }
+            return true;
+        }
+
         function renderDynamicWorksheet(ws) {
             const container = document.getElementById('study-subview-dynamic');
             container.replaceChildren();
@@ -1424,6 +1449,17 @@
                 if (/^\s*[-*]\s+/.test(line)) content = '• ' + line.replace(/^\s*[-*]\s+/, '');
                 appendAnswerLine(paragraph, content, lineNo, answers);
                 container.appendChild(paragraph);
+                if (question && questionNeedsTextarea(lines, lineNo)) {
+                    const key = 'q-' + lineNo;
+                    const textarea = document.createElement('textarea');
+                    textarea.dataset.answerKey = key;
+                    textarea.value = answers[key] || '';
+                    textarea.rows = 4;
+                    textarea.placeholder = '내 생각과 근거를 작성하세요.';
+                    textarea.setAttribute('aria-label', question[1] + '번 주관식 답변');
+                    textarea.className = 'mt-2 w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm leading-6 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100';
+                    container.appendChild(textarea);
+                }
             });
 
             const footer = document.createElement('div');
@@ -1448,10 +1484,11 @@
             const controls = Array.from(document.querySelectorAll('#study-subview-dynamic [data-answer-key]'));
             const answers = {};
             controls.forEach(control => {
-                answers[control.dataset.answerKey] = control.type === 'text' ? control.value : control.checked;
+                const isTextControl = control.tagName === 'TEXTAREA' || control.type === 'text';
+                answers[control.dataset.answerKey] = isTextControl ? control.value : control.checked;
             });
             localStorage.setItem(dynamicStorageKey(ws), JSON.stringify(answers));
-            const textFields = controls.filter(control => control.type === 'text');
+            const textFields = controls.filter(control => control.tagName === 'TEXTAREA' || control.type === 'text');
             const radioGroups = new Set(controls.filter(control => control.type === 'radio').map(control => control.name));
             ws.completed = textFields.length + radioGroups.size > 0
                 && textFields.every(control => control.value.trim())
@@ -1473,8 +1510,92 @@
                     return answer ? String(answer).replace(/[\r\n]+/g, ' ') : original;
                 });
                 if (answers['c-' + lineNo]) result = result.replace(/^(\s*[-*]\s+)\[ \]/, '$1[x]');
+                if (answers['q-' + lineNo]) {
+                    result += '\n\n> 내 답변: ' + String(answers['q-' + lineNo]).replace(/[\r\n]+/g, ' ');
+                }
                 return result;
             }).join('\n');
+        }
+
+        function currentDynamicAnswers(ws) {
+            persistDynamicProgress(false);
+            return readDynamicAnswers(ws);
+        }
+
+        async function submitCurrentWorksheetToAI() {
+            const ws = worksheets.find(item => item.id === activeWorksheetId);
+            if (!ws?.aiGenerated || !ws.remoteId) {
+                showToast('AI가 생성한 학습지만 바로 제출할 수 있습니다.', true);
+                return;
+            }
+            persistDynamicProgress(false);
+            const button = document.getElementById('ai-submit-button');
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 해설 생성 중';
+            try {
+                const result = await aiApi('/api/submit', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        worksheetId: ws.remoteId,
+                        answers: currentDynamicAnswers(ws),
+                        completedMarkdown: dynamicMarkdownWithAnswers(ws)
+                    })
+                });
+                ws.completed = true;
+                saveWorksheetsToStorage();
+                renderMainGrid();
+                updateStats();
+                renderAiFeedback(result.feedback);
+                showToast('제출 완료! AI 해설과 이해도 기록을 저장했습니다.');
+            } catch (error) {
+                showToast(error.message, true);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-paper-plane"></i> 제출·AI 해설';
+            }
+        }
+
+        function renderAiFeedback(feedback) {
+            const panel = document.getElementById('ai-feedback-panel');
+            const content = document.getElementById('ai-feedback-content');
+            content.replaceChildren();
+
+            const summary = document.createElement('div');
+            summary.className = 'rounded-xl bg-emerald-50 border border-emerald-100 p-4 leading-7';
+            summary.textContent = feedback.overall_summary || '해설이 생성되었습니다.';
+            content.appendChild(summary);
+
+            (feedback.per_question || []).forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'rounded-xl border border-slate-200 p-4';
+                const heading = document.createElement('div');
+                heading.className = 'font-bold text-slate-900 mb-2';
+                heading.textContent = `${item.question_id} · 이해도 ${item.score}점`;
+                const good = document.createElement('p');
+                good.className = 'text-emerald-700 mb-1';
+                good.textContent = '잘한 점: ' + item.what_was_good;
+                const correction = document.createElement('p');
+                correction.textContent = '보완할 점: ' + item.correction;
+                card.append(heading, good, correction);
+                content.appendChild(card);
+            });
+
+            const next = document.createElement('div');
+            next.className = 'rounded-xl bg-slate-900 text-white p-4';
+            const nextTitle = document.createElement('div');
+            nextTitle.className = 'font-bold mb-2';
+            nextTitle.textContent = '다음 학습 초점';
+            const list = document.createElement('ul');
+            list.className = 'list-disc list-inside text-xs text-slate-200 space-y-1';
+            (feedback.next_focus || []).forEach(value => {
+                const item = document.createElement('li');
+                item.textContent = value;
+                list.appendChild(item);
+            });
+            next.append(nextTitle, list);
+            content.appendChild(next);
+            panel.classList.remove('hidden');
+            panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         // Switch Sub tabs in Study Mode
@@ -1620,3 +1741,4 @@
     </script>
 </body>
 </html>
+
